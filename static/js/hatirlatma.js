@@ -109,7 +109,7 @@
 
   // ---------- Şablon ----------
   var ORNEK = { ad: 'Ayşe', adsoyad: 'Ayşe Yılmaz', klinik: document.title.split('|').pop().trim() || 'Klinik',
-                gun: 'Pazartesi', tarih: '16 Kasım', saat: '10:30', islem: 'Genel Muayene' };
+                gun: 'Pazartesi', tarih: '16 Kasım', saat: '10:30', islem: 'Genel Muayene', hekim: 'Dr. Demo Hekim' };
   function onizle() {
     $('htOnizleme').textContent = $('htSablon').value.replace(/\{(\w+)\}/g, function (m, k) { return ORNEK[k] !== undefined ? ORNEK[k] : m; });
   }

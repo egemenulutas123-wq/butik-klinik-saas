@@ -58,6 +58,12 @@
                 </nav>
 
                 <div class="flex items-center gap-2">
+                    {% if kullanici %}
+                    <button type="button" data-komut-ac aria-label="Ara ve komut çalıştır" class="cam-acik flex items-center gap-2 h-10 px-3 rounded-xl text-[13px] font-semibold text-white hover:bg-white/20 transition-colors">
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                        <kbd data-kisayol class="hidden lg:inline-flex items-center h-6 px-1.5 rounded-md text-[11px] font-semibold font-sans text-violet-100 bg-white/10">Ctrl K</kbd>
+                    </button>
+                    {% endif %}
                     {% block ust_aksiyonlar %}
                     <a href="{{ url_for('randevular_sayfasi') }}" class="cam-acik hidden xl:flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold text-white hover:bg-white/20 transition-colors">Randevu Oluştur</a>
                     <button type="button" data-hasta-modal-ac class="flex items-center h-10 px-4 rounded-xl text-[13px] font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Yeni Hasta +</button>
@@ -74,6 +80,7 @@
                         </button>
                         <div id="kullaniciMenu" class="hidden absolute right-0 top-12 z-30 w-56 p-1.5 rounded-2xl border border-white/15" style="background: rgba(20,12,48,0.96); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px)">
                             <div class="px-3 py-2 text-xs text-violet-300 truncate">{{ kullanici.email }}</div>
+                            <button type="button" data-telefon-ac class="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-white hover:bg-white/10 transition-colors">Telefondan aç</button>
                             <button type="button" data-sifre-modal-ac class="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-white hover:bg-white/10 transition-colors">Şifremi değiştir</button>
                             <a href="{{ url_for('cikis') }}" class="block px-3 py-2.5 rounded-xl text-sm font-medium text-rose-200 hover:bg-rose-500/15 transition-colors">Çıkış yap</a>
                         </div>
@@ -191,6 +198,43 @@
         </form>
     </div>
 
+    <!-- Ctrl+K komut paleti -->
+    <button type="button" id="komutHastaAc" data-hasta-modal-ac hidden tabindex="-1"></button>
+    <div id="komutPaleti" data-doktor="{{ '1' if kullanici.doktor_mu else '0' }}" class="modal kapali fixed inset-0 z-[115] flex items-start justify-center p-3 sm:pt-[12vh]" style="background: rgba(3,2,14,0.7); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px)" aria-hidden="true">
+        <div class="modal-ic w-full max-w-xl rounded-[22px] border border-white/15 overflow-hidden shadow-[0_40px_100px_-30px_rgba(0,0,0,0.8)]" style="background: rgba(22,13,52,0.97)" role="dialog" aria-modal="true" aria-label="Ara ve komut çalıştır">
+            <div class="flex items-center gap-3 px-4 border-b border-white/10">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="komutGirdi" type="text" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="komutListe"
+                       class="flex-1 h-14 bg-transparent text-[15px] text-white placeholder:text-violet-300/60 outline-none" placeholder="Hasta, randevu, malzeme ya da işlem ara…">
+                <kbd class="hidden sm:inline-flex items-center h-6 px-1.5 rounded-md text-[11px] font-semibold text-violet-200 bg-white/10">Esc</kbd>
+            </div>
+            <div id="komutListe" role="listbox" class="max-h-[60vh] overflow-y-auto ince-kaydirma p-2"></div>
+            <div class="hidden sm:flex items-center gap-4 px-4 py-2.5 border-t border-white/10 text-[11px] text-violet-300">
+                <span><kbd class="font-semibold text-violet-100">↑ ↓</kbd> seç</span><span><kbd class="font-semibold text-violet-100">Enter</kbd> aç</span>
+                <span><kbd class="font-semibold text-violet-100">Alt+Enter</kbd> hastaya randevu ver</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Telefondan aç -->
+    <div id="telefonModal" class="modal kapali fixed inset-0 z-[110] flex items-center justify-center p-4" style="background: rgba(3,2,14,0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+        <div class="modal-ic cam-parlak w-full max-w-md rounded-[28px] p-6 flex flex-col items-center gap-4 text-center" style="background: rgba(24,14,58,0.95)" role="dialog" aria-modal="true" aria-labelledby="telefonBaslik">
+            <h2 id="telefonBaslik" class="font-sora text-2xl font-medium text-white">Telefondan aç</h2>
+            <p class="text-sm text-violet-200">Telefon bu bilgisayarla <strong class="text-white">aynı Wi-Fi ağında</strong> olmalı. Kamerayla QR kodu okutun veya adresi tarayıcıya yazın.</p>
+            <div id="telefonQr" class="w-[236px] h-[236px] rounded-2xl bg-white flex items-center justify-center p-2"></div>
+            <div id="telefonAdres" class="font-sora text-lg font-medium text-teal-200 tabular-nums break-all"></div>
+            <div id="telefonUyari" class="hidden px-4 py-3 rounded-2xl text-[13px] text-amber-100 bg-amber-400/10 border border-amber-300/25 text-left">Uygulama yalnızca bu bilgisayara açık başlatılmış. Telefondan erişim için uygulamayı <code class="font-semibold">python app.py</code> ile yeniden başlatın.</div>
+            <ul class="w-full text-left text-[12px] leading-relaxed text-violet-300 list-disc pl-5">
+                <li>Açılmazsa Windows güvenlik duvarında Python için “Özel ağ” iznini verin.</li>
+                <li>Telefonda da aynı e-posta ve şifreyle giriş yapılır.</li>
+            </ul>
+            <div class="flex gap-3">
+                <button type="button" id="telefonKopyala" class="h-11 px-5 rounded-xl text-sm font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">Adresi kopyala</button>
+                <button type="button" data-modal-kapat="telefonModal" class="h-11 px-5 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100">Kapat</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Şifre değiştirme -->
     <div id="sifreModal" class="modal kapali fixed inset-0 z-[110] flex items-center justify-center p-4" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
         <form id="sifreForm" class="modal-ic cam-parlak w-full max-w-md rounded-[24px] p-6 flex flex-col gap-4" style="background: rgba(24,14,58,0.92)" role="dialog" aria-modal="true" aria-labelledby="sifreBaslik" novalidate>
@@ -218,6 +262,7 @@
     <script src="{{ url_for('static', filename='js/klinik3d.js') }}"></script>
     <script src="{{ url_for('static', filename='js/klinik.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dikte.js') }}"></script>
+    {% if kullanici %}<script src="{{ url_for('static', filename='js/komut.js') }}"></script>{% endif %}
     {% block scriptler %}{% endblock %}
 </body>
 </html>

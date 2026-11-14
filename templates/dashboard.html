@@ -70,6 +70,75 @@
     {% endfor %}
 </section>
 
+<!-- Bekleme salonu -->
+<section id="siraBolum" class="giris cam rounded-[28px] overflow-hidden" style="animation-delay: .15s" aria-labelledby="siraBaslik">
+    <div class="flex flex-wrap items-center gap-3 px-5 sm:px-6 py-4 border-b border-white/10" style="background: linear-gradient(90deg, rgba(56,189,248,0.10), rgba(139,92,246,0.08))">
+        <span class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-[#0C2A3F]" style="background: linear-gradient(135deg, #E0F2FE, #7DD3FC)">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+        <div class="min-w-0 mr-auto">
+            <h2 id="siraBaslik" class="font-sora text-lg font-medium text-white">Bekleme salonu</h2>
+            <p class="text-[12px] text-sky-50/70">Gelen hastayı işaretleyin, sırası gelince çağırın; salon ekranında adı ve odası görünür.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <a id="salonAc" href="#" target="_blank" rel="noopener" class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-[13px] font-bold text-[#0C2A3F] bg-sky-200 hover:bg-sky-100 transition-colors">
+                <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>Salon ekranını aç</a>
+            <button type="button" id="salonKopyala" class="h-10 px-3.5 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">Bağlantıyı kopyala</button>
+            {% if kullanici and kullanici.doktor_mu %}
+            <button type="button" id="salonAyarAc" aria-label="Bekleme salonu ayarları" class="w-10 h-10 rounded-xl inline-flex items-center justify-center text-white bg-white/10 border border-white/15 hover:bg-white/15">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="p-5 sm:p-6 flex flex-col gap-4">
+        <div id="siraHekimler" class="hidden flex-wrap gap-1.5" role="group" aria-label="Hekim filtresi"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="flex flex-col gap-2 min-w-0">
+                <h3 class="flex items-center gap-2 text-[13px] font-semibold text-violet-200">Gelmesi beklenen <span id="sayBeklenen" class="text-white"></span></h3>
+                <div id="kolonBeklenen" class="flex flex-col gap-2"></div>
+            </div>
+            <div class="flex flex-col gap-2 min-w-0">
+                <h3 class="flex items-center gap-2 text-[13px] font-semibold text-sky-200"><span class="nabiz w-2 h-2 rounded-full bg-sky-300"></span>Salonda bekliyor <span id="saySalon" class="text-white"></span></h3>
+                <div id="kolonSalon" class="flex flex-col gap-2"></div>
+            </div>
+            <div class="flex flex-col gap-2 min-w-0">
+                <h3 class="flex items-center gap-2 text-[13px] font-semibold text-teal-200">Çağrıldı / muayenede <span id="sayCagrilan" class="text-white"></span></h3>
+                <div id="kolonCagrilan" class="flex flex-col gap-2"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% if kullanici and kullanici.doktor_mu %}
+<div id="salonAyarModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="salonAyarForm" class="modal-ic cam-parlak w-full max-w-lg rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(12,26,48,0.95)" role="dialog" aria-modal="true" aria-labelledby="salonAyarBaslik" novalidate>
+        <h2 id="salonAyarBaslik" class="font-sora text-2xl font-medium text-white">Bekleme salonu ekranı</h2>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Ortalama muayene süresi (dakika) · bekleme tahmini için
+            <input id="sa_sure" type="number" min="5" max="90" class="alan"></label>
+        <fieldset>
+            <legend class="mb-2 text-[13px] font-medium text-sky-100">Ekranda hasta nasıl görünsün?</legend>
+            <div class="grid grid-cols-2 gap-2">
+                <label class="flex flex-col gap-0.5 p-3 rounded-xl bg-white/[0.05] border border-white/15 cursor-pointer has-[:checked]:bg-white/[0.14] has-[:checked]:border-white/60">
+                    <span class="flex items-center gap-2 text-sm font-semibold text-white"><input type="radio" name="sa_isim" value="kisalt" class="accent-sky-400">Sıra no + kısaltılmış ad</span>
+                    <span class="text-[12px] text-sky-50/60 pl-6">Ör. 12 · Zeynep D.</span></label>
+                <label class="flex flex-col gap-0.5 p-3 rounded-xl bg-white/[0.05] border border-white/15 cursor-pointer has-[:checked]:bg-white/[0.14] has-[:checked]:border-white/60">
+                    <span class="flex items-center gap-2 text-sm font-semibold text-white"><input type="radio" name="sa_isim" value="numara" class="accent-sky-400">Yalnızca sıra no</span>
+                    <span class="text-[12px] text-sky-50/60 pl-6">En gizli seçenek</span></label>
+            </div>
+        </fieldset>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Ekranın altında kayan mesaj
+            <input id="sa_mesaj" type="text" maxlength="160" class="alan"></label>
+        <label class="flex items-start gap-3 text-[13px] text-sky-50 cursor-pointer">
+            <input id="sa_yenile" type="checkbox" class="mt-0.5 w-4 h-4 accent-rose-400">
+            <span>Ekran bağlantısını yenile <span class="block text-[12px] text-sky-50/60">Eski bağlantı çalışmaz; salon ekranını yeni bağlantıyla açmanız gerekir.</span></span></label>
+        <div class="flex justify-end gap-3">
+            <button type="button" data-modal-kapat="salonAyarModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Vazgeç</button>
+            <button type="submit" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#0C2A3F] bg-sky-200 hover:bg-sky-100 disabled:opacity-60">Kaydet</button>
+        </div>
+    </form>
+</div>
+{% endif %}
+<script id="siraVeri" type="application/json">{{ {'doktor': kullanici.doktor_mu if kullanici else false, 'kullanici_id': kullanici.id if kullanici else none, 'hekimler': hekimler_json} | tojson }}</script>
+
 <div class="flex flex-wrap gap-4 items-stretch">
     <section class="giris cam flex-[3_1_520px] min-w-0 p-6 rounded-[28px] flex flex-col gap-2.5" style="animation-delay: .2s">
         <div class="flex items-center justify-between">
@@ -130,4 +199,8 @@
         </section>
     </div>
 </div>
+{% endblock %}
+
+{% block scriptler %}
+<script src="{{ url_for('static', filename='js/sira.js') }}"></script>
 {% endblock %}

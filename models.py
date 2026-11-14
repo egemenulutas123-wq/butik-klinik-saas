@@ -17,7 +17,16 @@ class Doktor(db.Model):
     kayit_tarihi = db.Column(db.DateTime, default=datetime.utcnow)
     son_giris = db.Column(db.DateTime)
 
+    # Hekim çalışma planı (yalnızca doktor rolü için anlamlı)
+    brans = db.Column(db.String(60))
+    oda = db.Column(db.String(40))
+    renk = db.Column(db.String(9))
+    calisma = db.Column(db.Text)            # JSON: {"0": ["09:00", "18:00"], ..., "6": null}
+    online_gorunur = db.Column(db.Boolean, default=True)
+
     randevular = db.relationship('Randevu', backref='doktor', lazy=True)
+    izinler = db.relationship('HekimIzin', backref='doktor', lazy=True, order_by='HekimIzin.bas.asc()',
+                              cascade='all, delete-orphan')
     muayeneler = db.relationship('Muayene', backref='doktor', lazy=True)
 
     def sifre_belirle(self, sifre):
@@ -100,6 +109,16 @@ class Hasta(db.Model):
         order_by='VucutIsareti.tarih.desc()',
         cascade='all, delete-orphan'
     )
+    dosyalar = db.relationship(
+        'HastaDosyasi', backref='hasta', lazy=True,
+        order_by='[HastaDosyasi.tarih.desc(), HastaDosyasi.id.desc()]',
+        cascade='all, delete-orphan'
+    )
+    lab_sonuclari = db.relationship(
+        'LabSonuc', backref='hasta', lazy=True,
+        order_by='[LabSonuc.tarih.asc(), LabSonuc.id.asc()]',
+        cascade='all, delete-orphan'
+    )
 
     DUZENLENEBILIR = ('tc_kimlik', 'ad_soyad', 'telefon', 'dogum_tarihi', 'cinsiyet', 'kan_grubu',
                       'hastalik_tanisi', 'kronik_hastaliklar', 'gecmis_ameliyatlar', 'alerji_durumu', 'sikayet')
@@ -177,6 +196,10 @@ class Randevu(db.Model):
     notlar = db.Column(db.Text)
     olusturma_tarihi = db.Column(db.DateTime, default=datetime.utcnow)
     hatirlatma = db.Column(db.DateTime)  # hatırlatma mesajının gönderildiği an
+    geldi = db.Column(db.DateTime)       # hasta kliniğe geldi (bekleme salonuna alındı)
+    sira_no = db.Column(db.Integer)      # o günkü sıra numarası
+    cagrildi = db.Column(db.DateTime)    # bekleme salonundan muayeneye çağrıldı
+    cagri_sayisi = db.Column(db.Integer, default=0)
 
     hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=False)
     doktor_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
@@ -196,6 +219,12 @@ class Randevu(db.Model):
             'muayene_var': self.muayene is not None,
             'hatirlatildi': self.hatirlatma is not None,
             'hasta_gelmeme': self.hasta.gelmeme_sayisi if self.hasta else 0,
+            'doktor_id': self.doktor_id,
+            'doktor_ad': self.doktor.gorunen_ad if self.doktor else '',
+            'doktor_renk': (self.doktor.renk if self.doktor else None) or '#A78BFA',
+            'geldi': self.geldi.strftime('%H:%M') if self.geldi else None,
+            'sira_no': self.sira_no,
+            'cagrildi': self.cagrildi.strftime('%H:%M') if self.cagrildi else None,
         }
 
 
@@ -331,9 +360,11 @@ class OnlineTalep(db.Model):
     ip = db.Column(db.String(45))
 
     isleyen_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
+    doktor_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)  # istenen hekim
     hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=True)
     randevu_id = db.Column(db.Integer, db.ForeignKey('randevu.id'), nullable=True)
-    isleyen = db.relationship('Doktor', lazy=True)
+    isleyen = db.relationship('Doktor', foreign_keys=[isleyen_id], lazy=True)
+    doktor = db.relationship('Doktor', foreign_keys=[doktor_id], lazy=True)
     hasta = db.relationship('Hasta', lazy=True)
     randevu = db.relationship('Randevu', lazy=True)
 
@@ -506,3 +537,78 @@ class IslemMalzemesi(db.Model):
     malzeme_id = db.Column(db.Integer, db.ForeignKey('malzeme.id'), nullable=False)
     miktar = db.Column(db.Float, nullable=False, default=1)
     malzeme = db.relationship('Malzeme', lazy=True)
+
+
+# ------------------------------------------------------------------
+# Hekim izinleri
+# ------------------------------------------------------------------
+class HekimIzin(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    doktor_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=False)
+    bas = db.Column(db.Date, nullable=False)
+    bit = db.Column(db.Date, nullable=False)
+    aciklama = db.Column(db.String(120))
+
+    def sozluk(self):
+        return {'id': self.id, 'bas': self.bas.isoformat(), 'bit': self.bit.isoformat(), 'aciklama': self.aciklama or ''}
+
+
+# ------------------------------------------------------------------
+# Tahlil / görüntüleme dosyaları ve laboratuvar sonuçları
+# ------------------------------------------------------------------
+class HastaDosyasi(db.Model):
+    TURLER = {'tahlil': 'Tahlil', 'goruntu': 'Görüntüleme', 'rapor': 'Rapor / epikriz', 'diger': 'Diğer'}
+
+    id = db.Column(db.Integer, primary_key=True)
+    hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=False)
+    tur = db.Column(db.String(12), nullable=False, default='tahlil')
+    ad = db.Column(db.String(160), nullable=False)          # yüklenen dosyanın özgün adı
+    dosya_adi = db.Column(db.String(80), nullable=False)    # diskteki rastgele ad
+    mime = db.Column(db.String(60))
+    boyut = db.Column(db.Integer, default=0)
+    tarih = db.Column(db.Date, nullable=False)             # belgenin tarihi
+    aciklama = db.Column(db.String(300))
+    olusturma = db.Column(db.DateTime, default=datetime.now)
+    yukleyen_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
+    yukleyen = db.relationship('Doktor', lazy=True)
+
+    @property
+    def gorsel_mi(self):
+        return (self.mime or '').startswith('image/')
+
+    def sozluk(self):
+        return {'id': self.id, 'tur': self.tur, 'tur_adi': self.TURLER.get(self.tur, self.tur), 'ad': self.ad,
+                'mime': self.mime, 'boyut': self.boyut, 'tarih': self.tarih.isoformat(), 'aciklama': self.aciklama or '',
+                'gorsel': self.gorsel_mi, 'adres': f'/dosya/{self.id}',
+                'yukleyen': self.yukleyen.gorunen_ad if self.yukleyen else '',
+                'lab_sayisi': LabSonuc.query.filter_by(dosya_id=self.id).count()}
+
+
+class LabSonuc(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=False)
+    dosya_id = db.Column(db.Integer, db.ForeignKey('hasta_dosyasi.id'), nullable=True)
+    tarih = db.Column(db.Date, nullable=False)
+    test = db.Column(db.String(40), nullable=False)    # anahtar (hgb, tsh…) veya "ozel:<ad>"
+    ad = db.Column(db.String(80), nullable=False)
+    deger = db.Column(db.Float, nullable=False)
+    birim = db.Column(db.String(20))
+    ref_min = db.Column(db.Float)
+    ref_max = db.Column(db.Float)
+    notlar = db.Column(db.String(200))
+    giren_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
+    giren = db.relationship('Doktor', lazy=True)
+
+    @property
+    def durum(self):
+        if self.ref_min is not None and self.deger < self.ref_min:
+            return 'dusuk'
+        if self.ref_max is not None and self.deger > self.ref_max:
+            return 'yuksek'
+        return 'normal'
+
+    def sozluk(self):
+        return {'id': self.id, 'tarih': self.tarih.isoformat(), 'test': self.test, 'ad': self.ad, 'deger': self.deger,
+                'birim': self.birim or '', 'ref_min': self.ref_min, 'ref_max': self.ref_max, 'durum': self.durum,
+                'notlar': self.notlar or '', 'dosya_id': self.dosya_id,
+                'giren': self.giren.gorunen_ad if self.giren else ''}

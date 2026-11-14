@@ -169,6 +169,44 @@
         </section>
 
         {% if doktor %}
+        <!-- Tahliller ve dosyalar -->
+        <section id="tahlilBolum" class="giris cam p-5 sm:p-6 rounded-[26px] flex flex-col gap-5 relative" style="animation-delay: .06s" aria-labelledby="tahlilBaslik">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h2 id="tahlilBaslik" class="font-sora text-xl font-medium text-white">Tahliller ve dosyalar</h2>
+                    <p id="tahlilAlt" class="mt-0.5 text-[13px] text-violet-300"></p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <label class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15 cursor-pointer transition-colors">
+                        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                        Dosya yükle<input id="dosyaSec" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple class="sr-only"></label>
+                    <button type="button" id="labAc" class="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-[13px] font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">
+                        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Sonuç gir</button>
+                </div>
+            </div>
+            <div id="labOzet" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5"></div>
+            <div id="labGrafikKap" class="hidden flex-col gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.07]">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div id="labGrafikBaslik" class="text-sm font-semibold text-white"></div>
+                    <div id="labGrafikRef" class="text-[12px] text-violet-300"></div>
+                </div>
+                <div class="relative">
+                    <svg id="labGrafik" class="w-full h-auto overflow-visible" viewBox="0 0 640 220" role="img" aria-label="Seçili tahlilin zaman grafiği"></svg>
+                    <div id="labIpucu" class="hidden pointer-events-none absolute z-10 px-3 py-2 rounded-xl text-xs border border-white/15 whitespace-nowrap" style="background: rgba(20,12,48,0.96)"></div>
+                </div>
+                <div id="labGecmis" class="flex flex-wrap gap-1.5"></div>
+            </div>
+            <div>
+                <div class="mb-2 text-[13px] font-semibold text-violet-200">Belgeler</div>
+                <div id="dosyaListe" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5"></div>
+            </div>
+            <div id="birakAlani" class="hidden absolute inset-0 z-20 rounded-[26px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-violet-300/70 text-center" style="background: rgba(30,16,70,0.88)">
+                <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                <div class="font-sora text-xl text-white">Dosyaları buraya bırakın</div>
+                <div class="text-[13px] text-violet-200">PDF, JPG, PNG · en fazla 20 MB</div>
+            </div>
+        </section>
+
         <!-- 3D vücut haritası -->
         <section id="vucutBolum" class="giris cam p-5 sm:p-6 rounded-[26px] flex flex-col gap-4" style="animation-delay: .08s" aria-labelledby="vucutBaslik">
             <div class="flex flex-wrap items-end justify-between gap-3">
@@ -639,6 +677,98 @@
 </div>
 {% endif %}
 
+{% if doktor %}
+<!-- Dosya yükleme bilgileri -->
+<div id="yuklemeModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="yuklemeForm" class="modal-ic cam-parlak w-full max-w-lg rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(24,14,58,0.94)" role="dialog" aria-modal="true" aria-labelledby="yuklemeBaslik" novalidate>
+        <div>
+            <h2 id="yuklemeBaslik" class="font-sora text-2xl font-medium text-white">Dosya yükle</h2>
+            <p id="yuklemeDosyalar" class="mt-1 text-sm text-violet-200/80 break-words"></p>
+        </div>
+        <fieldset>
+            <legend class="mb-2 text-[13px] font-medium text-violet-100">Belge türü</legend>
+            <div id="yuklemeTurler" class="grid grid-cols-2 gap-2"></div>
+        </fieldset>
+        <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] gap-3">
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Belge tarihi
+                <input id="y_tarih" type="date" class="alan"></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Açıklama
+                <input id="y_aciklama" type="text" maxlength="300" class="alan" placeholder="Ör. Tiroid paneli, akciğer grafisi"></label>
+        </div>
+        <div id="yuklemeIlerleme" class="hidden h-2 rounded-full bg-white/10 overflow-hidden"><div class="h-full w-0 rounded-full bg-violet-300 transition-all duration-300"></div></div>
+        <label class="flex items-center gap-3 text-[13px] font-medium text-violet-50 cursor-pointer">
+            <input id="y_sonuc" type="checkbox" class="w-4 h-4 accent-violet-400" checked>Yükledikten sonra bu tahlilden değer gir</label>
+        <div class="flex justify-end gap-3">
+            <button type="button" data-modal-kapat="yuklemeModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Vazgeç</button>
+            <button type="submit" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 disabled:opacity-60">Yükle</button>
+        </div>
+    </form>
+</div>
+
+<!-- Dosya görüntüleyici -->
+<div id="goruntuleyici" class="modal kapali fixed inset-0 z-[105] flex flex-col p-3 sm:p-6 gap-3" style="background: rgba(3,2,14,0.92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px)" aria-hidden="true">
+    <div class="modal-ic flex flex-col gap-3 h-full" role="dialog" aria-modal="true" aria-labelledby="gorBaslik">
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="min-w-0 mr-auto">
+                <h2 id="gorBaslik" class="font-sora text-lg font-medium text-white truncate"></h2>
+                <p id="gorAlt" class="text-[12px] text-violet-300"></p>
+            </div>
+            <button type="button" id="gorSonuc" class="h-10 px-4 rounded-xl text-[13px] font-bold text-[#1E0B4B] bg-white hover:bg-violet-100">Bu belgeden sonuç gir</button>
+            <a id="gorIndir" href="#" class="inline-flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">İndir</a>
+            <a id="gorYeniSekme" href="#" target="_blank" rel="noopener" class="inline-flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">Yeni sekmede</a>
+            <button type="button" id="gorSil" class="h-10 px-4 rounded-xl text-[13px] font-semibold text-rose-200 border border-rose-300/30 hover:bg-rose-500/15">Sil</button>
+            <button type="button" data-modal-kapat="goruntuleyici" aria-label="Kapat" class="w-10 h-10 rounded-xl bg-white/10 border border-white/15 text-white flex items-center justify-center hover:bg-white/15">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div id="gorIcerik" class="flex-1 min-h-0 rounded-2xl overflow-hidden bg-black/40 flex items-center justify-center"></div>
+    </div>
+</div>
+
+<!-- Laboratuvar sonucu girişi -->
+<div id="labModal" class="modal kapali fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto p-3 sm:p-8" style="background: rgba(3,2,14,0.78); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px)" aria-hidden="true">
+    <form id="labForm" class="modal-ic cam-parlak w-full max-w-3xl rounded-[28px] p-5 sm:p-7 flex flex-col gap-4" style="background: rgba(24,14,58,0.95)" role="dialog" aria-modal="true" aria-labelledby="labBaslik" novalidate>
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 id="labBaslik" class="font-sora text-2xl font-medium text-white">Tahlil sonucu gir</h2>
+                <p class="mt-1 text-sm text-violet-200/80">Referans aralıkları hastanın cinsiyetine göre doldurulur; laboratuvarınızınkiyle farklıysa düzeltin.</p>
+            </div>
+            <button type="button" data-modal-kapat="labModal" aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-violet-100 flex items-center justify-center hover:bg-white/10">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-[170px_1fr] gap-3">
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Tahlil tarihi
+                <input id="l_tarih" type="date" class="alan"></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Bağlı belge (isteğe bağlı)
+                <select id="l_dosya" class="alan"></select></label>
+        </div>
+        <div class="flex flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[13px] font-medium text-violet-100">Hızlı panel:</span>
+                <div id="labPaneller" class="flex flex-wrap gap-1.5"></div>
+            </div>
+            <div class="relative">
+                <label class="sr-only" for="labAra">Test ara</label>
+                <input id="labAra" type="text" autocomplete="off" class="alan" placeholder="Test ekle: TSH, hemoglobin, LDL… (listede yoksa yazıp Enter ile özel test)">
+                <div id="labOneri" class="hidden absolute top-full left-0 right-0 mt-2 z-20 rounded-xl border border-white/15 py-1 max-h-64 overflow-y-auto ince-kaydirma" style="background: rgba(20,12,48,0.98)"></div>
+            </div>
+        </div>
+        <div class="overflow-x-auto ince-kaydirma -mx-1 px-1">
+            <table class="w-full min-w-[600px] text-sm">
+                <thead><tr class="text-left text-xs text-violet-400">
+                    <th class="py-2 font-semibold">Test</th><th class="font-semibold w-[120px]">Değer</th><th class="font-semibold w-[90px]">Birim</th>
+                    <th class="font-semibold w-[170px]">Referans (alt – üst)</th><th class="w-[70px]"></th><th class="w-10"></th></tr></thead>
+                <tbody id="labSatirlar"></tbody>
+            </table>
+            <div id="labBos" class="py-6 text-center text-[13px] text-violet-300 rounded-2xl border border-dashed border-white/15">Yukarıdan test veya hazır panel ekleyin.</div>
+        </div>
+        <div class="flex justify-end gap-3">
+            <button type="button" data-modal-kapat="labModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Vazgeç</button>
+            <button type="submit" id="labKaydet" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 disabled:opacity-60">Sonuçları kaydet</button>
+        </div>
+    </form>
+</div>
+{% endif %}
+
 {% include '_kasa_modal.html' %}
 
 <script id="profilVeri" type="application/json">{{ {
@@ -651,6 +781,7 @@
     'isaretler': isaretler_json,
     'isaret_turleri': isaret_turleri,
     'muayeneler': muayeneler_json,
+    'tahlil': tahlil_json,
 } | tojson }}</script>
 {% endblock %}
 
@@ -658,5 +789,6 @@
 <script src="{{ url_for('static', filename='js/profil.js') }}"></script>
 <script src="{{ url_for('static', filename='js/kasa.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hesap.js') }}"></script>
-{% if doktor %}<script src="{{ url_for('static', filename='js/vucut3d.js') }}"></script>{% endif %}
+{% if doktor %}<script src="{{ url_for('static', filename='js/vucut3d.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tahlil.js') }}"></script>{% endif %}
 {% endblock %}

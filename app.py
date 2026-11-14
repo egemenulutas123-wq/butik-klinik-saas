@@ -8,15 +8,17 @@ import os
 import re
 import secrets
 import shutil
+import socket
 import sqlite3
 from urllib.parse import quote
 
 from flask import (Flask, jsonify, render_template, request, session, redirect, url_for, g,
-                   send_from_directory, Response, abort)
+                   send_from_directory, send_file, Response, abort)
 from sqlalchemy import inspect, text, func, case
 
 from models import (db, Doktor, Hasta, Randevu, Muayene, Recete, ReceteKalemi, Vital, IslemKaydi, ROLLER,
-                    Ayar, OnlineTalep, Tarife, KasaHareketi, VucutIsareti, Malzeme, StokHareketi, IslemMalzemesi)
+                    Ayar, OnlineTalep, Tarife, KasaHareketi, VucutIsareti, Malzeme, StokHareketi, IslemMalzemesi,
+                    HekimIzin, HastaDosyasi, LabSonuc)
 from ilaclar import recete_kontrol, ilac_listesi, ilac_bul, UYARI_NOTU
 
 app = Flask(__name__)
@@ -87,7 +89,7 @@ GUN_KISA = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 AYLAR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz',
          'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
 
-SAAT_DILIMLERI = [f'{s:02d}:{d:02d}' for s in range(9, 18) for d in (0, 30)]
+SAAT_DILIMLERI = [f'{s:02d}:{d:02d}' for s in range(8, 20) for d in (0, 30)]  # 08:00–19:30; hekim mesaisine göre süzülür
 ISLEM_TURLERI = ['Genel Muayene', 'Kontrol Muayenesi', 'Kan Tahlili', 'Ultrason',
                  'Pansuman', 'Enjeksiyon', 'EKG', 'Konsültasyon']
 DURUMLAR = ['Bekliyor', 'Onaylandı', 'Tamamlandı', 'Gelmedi', 'İptal']
@@ -99,12 +101,12 @@ ISLEM_ADLARI = {
     'goruntuleme': 'Görüntüleme', 'olusturma': 'Oluşturma', 'guncelleme': 'Güncelleme', 'silme': 'Silme',
     'yazdirma': 'Yazdırma', 'disa_aktarma': 'Dışa aktarma', 'riza': 'Rıza', 'yedek': 'Yedekleme',
     'geri_yukleme': 'Geri yükleme', 'yetki': 'Yetki', 'tahsilat': 'Tahsilat', 'iptal': 'İptal',
-    'online': 'Online talep', 'ayar': 'Ayar', 'hatirlatma': 'Hatırlatma', 'stok': 'Stok',
+    'online': 'Online talep', 'ayar': 'Ayar', 'hatirlatma': 'Hatırlatma', 'stok': 'Stok', 'indirme': 'İndirme',
 }
 HEDEF_ADLARI = {'hasta': 'Hasta', 'randevu': 'Randevu', 'muayene': 'Muayene', 'recete': 'Reçete',
                 'vital': 'Vital', 'kullanici': 'Kullanıcı', 'yedek': 'Yedek', 'oturum': 'Oturum', 'gunluk': 'Günlük',
                 'kasa': 'Kasa', 'talep': 'Online talep', 'isaret': 'Vücut işareti', 'ayar': 'Ayar',
-                'malzeme': 'Malzeme', 'rapor': 'Rapor'}
+                'malzeme': 'Malzeme', 'rapor': 'Rapor', 'dosya': 'Hasta dosyası', 'lab': 'Tahlil sonucu'}
 YONTEMLER = ['Nakit', 'Kart', 'Havale']
 
 
@@ -246,7 +248,9 @@ def islem_kaydet(islem, hedef_tur=None, hedef_id=None, aciklama='', kullanici=No
 ACIK_UC_NOKTALAR = {'giris', 'kurulum', 'api_giris', 'api_kurulum', 'static',
                     # Hastaların girişsiz kullandığı online randevu sayfası
                     'online_randevu', 'online_aydinlatma', 'online_takvim', 'online_saatler', 'online_talep_olustur',
-                    'online_takip', 'online_takip_ics', 'online_talep_iptal'}
+                    'online_takip', 'online_takip_ics', 'online_talep_iptal',
+                    # Bekleme salonu TV ekranı (gizli anahtarlı bağlantı)
+                    'salon_ekrani', 'salon_durum'}
 _hatali_girisler = {}  # e-posta -> [deneme sayısı, kilit bitiş zamanı]
 
 
@@ -416,7 +420,9 @@ def api_kurulum():
 @doktor_gerekli
 def ekip():
     uyeler = Doktor.query.order_by(Doktor.rol.asc(), Doktor.ad_soyad.asc()).all()
-    return render_template('ekip.html', uyeler=uyeler, roller=ROLLER)
+    return render_template('ekip.html', uyeler=uyeler, roller=ROLLER,
+                           hekimler_json=[hekim_sozluk(h, tam=True) for h in hekimler()], gun_adlari=GUNLER,
+                           renkler=HEKIM_RENKLERI)
 
 
 @app.route('/api/kullanici_ekle', methods=['POST'])
@@ -428,6 +434,8 @@ def kullanici_ekle():
         return hata(mesaj)
     rol = veri.get('rol') if veri.get('rol') in ROLLER else 'sekreter'
     k = Doktor(ad_soyad=temiz['ad_soyad'], email=temiz['email'], rol=rol)
+    if rol == 'doktor':
+        k.renk = HEKIM_RENKLERI[len(hekimler()) % len(HEKIM_RENKLERI)]
     k.sifre_belirle(temiz['sifre'])
     db.session.add(k)
     db.session.flush()
@@ -444,10 +452,18 @@ def kullanici_sil(kid):
         return hata('Kendi hesabınızı silemezsiniz.')
     if k.doktor_mu and Doktor.query.filter_by(rol='doktor').count() <= 1:
         return hata('Sistemde en az bir doktor kalmalıdır.')
+    if k.doktor_mu:
+        yedek = next(h for h in hekimler() if h.id != k.id)
+        aktif = Randevu.query.filter(Randevu.doktor_id == k.id, Randevu.tarih >= date.today(),
+                                     Randevu.durum.in_(['Bekliyor', 'Onaylandı'])).count()
+        Randevu.query.filter(Randevu.doktor_id == k.id).update({'doktor_id': yedek.id})
+        OnlineTalep.query.filter(OnlineTalep.doktor_id == k.id).update({'doktor_id': yedek.id})
+        if aktif:
+            islem_kaydet('guncelleme', 'randevu', None, f'{k.gorunen_ad} kaldırıldığı için {aktif} randevu {yedek.gorunen_ad} hekime aktarıldı')
     for model, alan in ((Randevu, 'doktor_id'), (Muayene, 'doktor_id'), (Recete, 'doktor_id'),
                         (Vital, 'olcen_id'), (IslemKaydi, 'kullanici_id'), (KasaHareketi, 'kullanici_id'),
                         (KasaHareketi, 'iptal_eden_id'), (OnlineTalep, 'isleyen_id'), (VucutIsareti, 'doktor_id'),
-                        (StokHareketi, 'kullanici_id')):
+                        (StokHareketi, 'kullanici_id'), (HastaDosyasi, 'yukleyen_id'), (LabSonuc, 'giren_id')):
         model.query.filter(getattr(model, alan) == k.id).update({alan: None})
     islem_kaydet('yetki', 'kullanici', k.id, f'{k.gorunen_ad} ekipten kaldırıldı')
     db.session.delete(k)
@@ -522,6 +538,7 @@ def panel():
         pazar=pazartesi + timedelta(days=6),
         son_hastalar=son_hastalar,
         selamlama=selamlama,
+        hekimler_json=[hekim_sozluk(h) for h in hekimler()],
     )
 
 
@@ -565,6 +582,13 @@ def hasta_detay(hasta_id):
         isaret_turleri=VucutIsareti.TURLER,
         muayeneler_json=[{'id': m.id, 'etiket': f'{kisa_tarih(m.tarih)} · {m.tani}', 'bugun': m.tarih.date() == date.today()}
                          for m in hasta.muayeneler] if doktor else [],
+        tahlil_json={
+            'dosyalar': [d.sozluk() for d in hasta.dosyalar],
+            'lab': [l.sozluk() for l in hasta.lab_sonuclari],
+            'testler': lab_test_listesi(hasta),
+            'turler': HastaDosyasi.TURLER,
+            'bugun': date.today().isoformat(),
+        } if doktor else None,
     )
 
 
@@ -606,6 +630,8 @@ def randevular_sayfasi():
         online_ayar=online_ayarlari(),
         online_link=url_for('online_randevu', _external=True),
         GUNLER=GUNLER,
+        hekimler_json=[hekim_sozluk(h) for h in hekimler()],
+        varsayilan_hekim=(g.kullanici.id if g.kullanici.doktor_mu else (hekimler() or [None])[0].id if hekimler() else None),
     )
 
 
@@ -690,6 +716,7 @@ def hasta_sil(hasta_id):
     islem_kaydet('silme', 'hasta', hasta.id, f'{ad} ve tüm tıbbi kayıtları silindi')
     db.session.delete(hasta)
     db.session.commit()
+    shutil.rmtree(hasta_dosya_klasoru(hasta_id, olustur=False), ignore_errors=True)
     return jsonify({'mesaj': f'{ad} ve tüm kayıtları silindi.', 'yonlendir': url_for('hastalar_listesi')})
 
 
@@ -729,6 +756,8 @@ def hasta_veri_indir(hasta_id):
         'vital_bulgular': [v.sozluk() for v in hasta.vitaller],
         'vucut_haritasi': [i.sozluk() for i in hasta.isaretler],
         'hesap_hareketleri': [hareket_sozluk(h) for h in hasta.kasa_hareketleri],
+        'laboratuvar_sonuclari': [l.sozluk() for l in hasta.lab_sonuclari],
+        'dosyalar': [{k: v for k, v in d.sozluk().items() if k not in ('adres',)} for d in hasta.dosyalar],
     }
     islem_kaydet('disa_aktarma', 'hasta', hasta.id, f'{hasta.ad_soyad} verileri dışa aktarıldı')
     db.session.commit()
@@ -745,16 +774,114 @@ def kvkk_aydinlatma():
 # ------------------------------------------------------------------
 # API: Randevular
 # ------------------------------------------------------------------
-def dolu_saat_kumesi(tarih, haric_randevu=None, haric_talep=None):
-    """Randevular ve onay bekleyen online talepler o günün dolu saatleridir."""
-    dolu = {r.saat for r in Randevu.query.filter(Randevu.tarih == tarih, Randevu.durum != 'İptal').all()
-            if r.id != haric_randevu}
-    dolu |= {t.saat for t in OnlineTalep.query.filter_by(tarih=tarih, durum='Bekliyor').all() if t.id != haric_talep}
+HEKIM_RENKLERI = ['#A78BFA', '#5EEAD4', '#F9A8D4', '#FCD34D', '#7DD3FC', '#86EFAC', '#FDBA74', '#C4B5FD']
+VARSAYILAN_CALISMA = {**{str(i): ['09:00', '18:00'] for i in range(6)}, '6': None}  # Pzt–Cmt 09–18, Pazar kapalı
+
+
+def hekimler(online=False):
+    liste = Doktor.query.filter_by(rol='doktor').order_by(Doktor.id.asc()).all()
+    return [h for h in liste if h.online_gorunur is not False] if online else liste
+
+
+def hekim_calisma(h):
+    try:
+        c = json.loads(h.calisma) if h and h.calisma else None
+    except (ValueError, TypeError):
+        c = None
+    if not isinstance(c, dict):
+        c = VARSAYILAN_CALISMA
+    return {str(i): c.get(str(i)) for i in range(7)}
+
+
+def hekim_gun_durumu(h, tarih):
+    """(başlangıç, bitiş, kapalı_nedeni) — hekim o gün çalışmıyorsa başlangıç None."""
+    for iz in h.izinler:
+        if iz.bas <= tarih <= iz.bit:
+            return None, None, f'{h.gorunen_ad} bu tarihte izinli' + (f' ({iz.aciklama})' if iz.aciklama else '')
+    aralik = hekim_calisma(h).get(str(tarih.weekday()))
+    if not aralik:
+        return None, None, f'{h.gorunen_ad} {GUNLER[tarih.weekday()]} günleri çalışmıyor'
+    return aralik[0], aralik[1], None
+
+
+def mesai_disi_saatler(h, tarih):
+    if h is None:
+        return set(), None
+    bas, bit, neden = hekim_gun_durumu(h, tarih)
+    if not bas:
+        return set(SAAT_DILIMLERI), neden
+    return {s for s in SAAT_DILIMLERI if not (bas <= s < bit)}, None
+
+
+def hekim_sozluk(h, tam=False):
+    v = {'id': h.id, 'ad': h.gorunen_ad, 'kisa': h.ad_soyad, 'brans': h.brans or '', 'oda': h.oda or '',
+         'renk': h.renk or HEKIM_RENKLERI[0], 'bas_harfler': h.bas_harfler}
+    if tam:
+        v.update({'calisma': hekim_calisma(h), 'online_gorunur': h.online_gorunur is not False,
+                  'izinler': [i.sozluk() for i in h.izinler if i.bit >= date.today()]})
+    return v
+
+
+def istenen_hekim(deger):
+    """İstekteki doktor_id'yi çözer; tek hekim varsa veya giriş yapan hekimse otomatik seçer."""
+    liste = hekimler()
+    if not liste:
+        return None, 'Sistemde kayıtlı hekim yok.'
+    if deger in (None, '', 0, '0'):
+        if len(liste) == 1:
+            return liste[0], None
+        if g.get('kullanici') and g.kullanici.doktor_mu:
+            return g.kullanici, None
+        return None, 'Lütfen bir hekim seçin.'
+    try:
+        h = db.session.get(Doktor, int(deger))
+    except (TypeError, ValueError):
+        h = None
+    if not h or not h.doktor_mu:
+        return None, 'Seçilen hekim bulunamadı.'
+    return h, None
+
+
+def dolu_saat_kumesi(tarih, haric_randevu=None, haric_talep=None, doktor_id=None):
+    """Randevular ve onay bekleyen online talepler o günün (hekimin) dolu saatleridir."""
+    q = Randevu.query.filter(Randevu.tarih == tarih, Randevu.durum != 'İptal')
+    tq = OnlineTalep.query.filter_by(tarih=tarih, durum='Bekliyor')
+    if doktor_id:
+        q = q.filter(Randevu.doktor_id == doktor_id)
+        tq = tq.filter(OnlineTalep.doktor_id == doktor_id)
+    dolu = {r.saat for r in q.all() if r.id != haric_randevu}
+    dolu |= {t.saat for t in tq.all() if t.id != haric_talep}
     return dolu
 
 
-def saat_cakisiyor_mu(tarih, saat, haric_id=None, haric_talep=None):
-    return saat in dolu_saat_kumesi(tarih, haric_randevu=haric_id, haric_talep=haric_talep)
+def saat_uygun_degil(hekim, tarih, saat, haric_id=None, haric_talep=None):
+    """Saat verilemiyorsa nedenini döndürür; uygunsa None."""
+    kapali, neden = mesai_disi_saatler(hekim, tarih)
+    if neden:
+        return neden + '.'
+    if saat in kapali:
+        return f'{saat}, {hekim.gorunen_ad} için mesai saatleri dışında.'
+    if saat in dolu_saat_kumesi(tarih, haric_randevu=haric_id, haric_talep=haric_talep,
+                                doktor_id=hekim.id if hekim else None):
+        return f'{saat} saati bu tarihte dolu.'
+    return None
+
+
+def saat_cakisiyor_mu(tarih, saat, haric_id=None, haric_talep=None, doktor_id=None):
+    return saat in dolu_saat_kumesi(tarih, haric_randevu=haric_id, haric_talep=haric_talep, doktor_id=doktor_id)
+
+
+def hekim_atamalari():
+    """Hekimi boş kalmış (eski sürümden gelen) randevu ve talepleri ilk hekime bağlar; hekimlere renk verir."""
+    liste = hekimler()
+    if not liste:
+        return
+    for i, h in enumerate(liste):
+        if not h.renk:
+            h.renk = HEKIM_RENKLERI[i % len(HEKIM_RENKLERI)]
+    Randevu.query.filter(Randevu.doktor_id.is_(None)).update({'doktor_id': liste[0].id}, synchronize_session=False)
+    OnlineTalep.query.filter(OnlineTalep.doktor_id.is_(None)).update({'doktor_id': liste[0].id}, synchronize_session=False)
+    db.session.commit()
 
 
 @app.route('/api/randevu_ekle', methods=['POST'])
@@ -770,8 +897,12 @@ def randevu_ekle():
     hasta = db.session.get(Hasta, veri.get('hasta_id') or 0)
     if not hasta:
         return hata('Lütfen bir hasta seçin.')
-    if saat_cakisiyor_mu(tarih, saat):
-        return hata(f'{saat} saati bu tarihte dolu.', 409)
+    hekim, mesaj = istenen_hekim(veri.get('doktor_id'))
+    if mesaj:
+        return hata(mesaj)
+    mesaj = saat_uygun_degil(hekim, tarih, saat)
+    if mesaj:
+        return hata(mesaj, 409)
 
     yeni_randevu = Randevu(
         hasta_id=hasta.id,
@@ -780,11 +911,11 @@ def randevu_ekle():
         islem_turu=veri.get('islem_turu') or 'Genel Muayene',
         notlar=(veri.get('notlar') or '').strip() or None,
         durum='Bekliyor',
-        doktor_id=g.kullanici.id if g.kullanici.doktor_mu else None,
+        doktor_id=hekim.id,
     )
     db.session.add(yeni_randevu)
     db.session.flush()
-    islem_kaydet('olusturma', 'randevu', yeni_randevu.id, f'{hasta.ad_soyad} · {kisa_tarih(tarih)} {saat}')
+    islem_kaydet('olusturma', 'randevu', yeni_randevu.id, f'{hasta.ad_soyad} · {kisa_tarih(tarih)} {saat} · {hekim.gorunen_ad}')
     db.session.commit()
     return jsonify({'mesaj': 'Randevu başarıyla oluşturuldu.', 'randevu': yeni_randevu.sozluk()}), 201
 
@@ -802,14 +933,25 @@ def randevu_ertele(randevu_id):
         return hata('Geçerli bir tarih seçin.')
     if not re.fullmatch(r'\d{2}:\d{2}', saat):
         return hata('Geçerli bir saat seçin.')
-    if tarih == randevu.tarih and saat == randevu.saat:
+    if veri.get('doktor_id'):
+        hekim, mesaj = istenen_hekim(veri.get('doktor_id'))
+        if mesaj:
+            return hata(mesaj)
+    else:
+        hekim = randevu.doktor or (hekimler() or [None])[0]
+    if tarih == randevu.tarih and saat == randevu.saat and hekim and hekim.id == randevu.doktor_id:
         return hata('Yeni tarih veya saat mevcut randevuyla aynı.')
-    if saat_cakisiyor_mu(tarih, saat, haric_id=randevu.id):
-        return hata(f'{saat} saati bu tarihte dolu.', 409)
+    mesaj = saat_uygun_degil(hekim, tarih, saat, haric_id=randevu.id)
+    if mesaj:
+        return hata(mesaj, 409)
 
     eski = f'{kisa_tarih(randevu.tarih)} {randevu.saat}'
     randevu.tarih = tarih
     randevu.saat = saat
+    if hekim:
+        randevu.doktor_id = hekim.id
+    randevu.geldi = randevu.cagrildi = None
+    randevu.sira_no = None
     if randevu.durum == 'İptal':
         randevu.durum = 'Bekliyor'
     if veri.get('not_ekle'):
@@ -853,9 +995,13 @@ def dolu_saatler():
     tarih = tarih_coz(request.args.get('tarih'))
     if not tarih:
         return hata('Geçerli bir tarih gönderin.')
+    hekim, _ = istenen_hekim(request.args.get('doktor_id'))
     dolu = dolu_saat_kumesi(tarih, haric_randevu=request.args.get('haric', type=int),
-                            haric_talep=request.args.get('haric_talep', type=int))
-    return jsonify({'tarih': tarih.isoformat(), 'dolu': sorted(dolu)})
+                            haric_talep=request.args.get('haric_talep', type=int),
+                            doktor_id=hekim.id if hekim else None)
+    kapali, neden = mesai_disi_saatler(hekim, tarih)
+    return jsonify({'tarih': tarih.isoformat(), 'dolu': sorted(dolu), 'kapali': sorted(kapali), 'neden': neden,
+                    'doktor_id': hekim.id if hekim else None})
 
 
 # ------------------------------------------------------------------
@@ -1463,14 +1609,37 @@ def whatsapp_link(telefon, mesaj):
     return f'https://wa.me/90{n}?text={quote(mesaj)}' if len(n) == 10 else None
 
 
-def online_saat_listesi(tarih, ayarlar, haric_talep=None):
+def online_adaylar(doktor_id=None):
+    adaylar = hekimler(online=True)
+    if doktor_id:
+        adaylar = [h for h in adaylar if str(h.id) == str(doktor_id)]
+    return adaylar
+
+
+def online_saat_listesi(tarih, ayarlar, haric_talep=None, doktor_id=None):
+    """Seçilen hekimin (ya da 'fark etmez' ise herhangi bir hekimin) boş olduğu saatler; mesai dışı saatler listelenmez."""
     sinir = datetime.now() + timedelta(hours=ayarlar['min_saat'])
-    dolu = dolu_saat_kumesi(tarih, haric_talep=haric_talep)
+    durumlar = []
+    for h in online_adaylar(doktor_id):
+        kapali, _ = mesai_disi_saatler(h, tarih)
+        durumlar.append((h, kapali, dolu_saat_kumesi(tarih, haric_talep=haric_talep, doktor_id=h.id)))
     liste = []
     for s in SAAT_DILIMLERI:
+        mesaide = [d for d in durumlar if s not in d[1]]
+        if not mesaide:
+            continue
         an = datetime.combine(tarih, datetime.strptime(s, '%H:%M').time())
-        liste.append({'saat': s, 'dolu': s in dolu or an < sinir})
+        bos = [d[0] for d in mesaide if s not in d[2]]
+        liste.append({'saat': s, 'dolu': not bos or an < sinir})
     return liste
+
+
+def online_bos_hekim(tarih, saat, doktor_id=None, haric_talep=None):
+    for h in online_adaylar(doktor_id):
+        kapali, _ = mesai_disi_saatler(h, tarih)
+        if saat not in kapali and saat not in dolu_saat_kumesi(tarih, haric_talep=haric_talep, doktor_id=h.id):
+            return h
+    return None
 
 
 def online_gun_acik_mi(tarih, ayarlar):
@@ -1488,8 +1657,9 @@ def talep_sozluk(t, hastalar=None):
         'tarih': t.tarih.isoformat(), 'tarih_metin': f'{t.tarih.day} {AYLAR[t.tarih.month - 1]} {GUNLER[t.tarih.weekday()]}',
         'saat': t.saat, 'islem_turu': t.islem_turu, 'notlar': t.notlar or '', 'kvkk_onay': bool(t.kvkk_onay),
         'durum': t.durum, 'olusturma': t.olusturma.isoformat(timespec='minutes'),
+        'doktor_id': t.doktor_id, 'doktor_ad': t.doktor.gorunen_ad if t.doktor else '',
         'whatsapp': whatsapp_link(t.telefon, f'Merhaba {t.ad_soyad.split()[0]}, {KLINIK_ADI} online randevu talebiniz hakkında yazıyoruz.'),
-        'saat_dolu': t.saat in dolu_saat_kumesi(t.tarih, haric_talep=t.id) if t.durum == 'Bekliyor' else False,
+        'saat_dolu': bool(saat_uygun_degil(t.doktor, t.tarih, t.saat, haric_talep=t.id)) if t.durum == 'Bekliyor' and t.doktor else False,
     }
     if hastalar is not None:
         tn = telefon_normal(t.telefon)
@@ -1517,18 +1687,22 @@ def online_aydinlatma():
 def online_takvim():
     a = online_ayarlari()
     if not a['acik']:
-        return jsonify({'acik': False, 'gunler': [], 'hizmetler': []})
+        return jsonify({'acik': False, 'gunler': [], 'hizmetler': [], 'hekimler': []})
+    doktor_id = request.args.get('doktor_id', type=int)
     bugun = date.today()
     gunler = []
     for i in range(a['gun'] + 1):
         d = bugun + timedelta(days=i)
         kapali = d.weekday() in a['kapali']
-        bos = 0 if kapali else sum(1 for x in online_saat_listesi(d, a) if not x['dolu'])
+        bos = 0 if kapali else sum(1 for x in online_saat_listesi(d, a, doktor_id=doktor_id) if not x['dolu'])
         gunler.append({'iso': d.isoformat(), 'gun': d.day, 'ay': AYLAR[d.month - 1][:3], 'kisa': GUN_KISA[d.weekday()],
                        'uzun': GUNLER[d.weekday()], 'kapali': kapali, 'bos': bos})
     tarifeler = tarife_sozlugu() if a['fiyat_goster'] else {}
     hizmetler = [{'ad': h, 'ucret': tl(tarifeler[h]) if tarifeler.get(h) else None} for h in a['hizmetler']]
-    return jsonify({'acik': True, 'gunler': gunler, 'hizmetler': hizmetler})
+    hekim_liste = [{'id': h.id, 'ad': h.gorunen_ad, 'brans': h.brans or '', 'renk': h.renk or HEKIM_RENKLERI[0],
+                    'bas_harfler': h.bas_harfler} for h in hekimler(online=True)]
+    return jsonify({'acik': True, 'gunler': gunler, 'hizmetler': hizmetler,
+                    'hekimler': hekim_liste if len(hekim_liste) > 1 else []})
 
 
 @app.route('/api/online/saatler')
@@ -1537,7 +1711,7 @@ def online_saatler():
     tarih = tarih_coz(request.args.get('tarih'))
     if not a['acik'] or not tarih or not online_gun_acik_mi(tarih, a):
         return jsonify({'saatler': []})
-    return jsonify({'saatler': online_saat_listesi(tarih, a)})
+    return jsonify({'saatler': online_saat_listesi(tarih, a, doktor_id=request.args.get('doktor_id', type=int))})
 
 
 @app.route('/api/online/talep', methods=['POST'])
@@ -1571,8 +1745,10 @@ def online_talep_olustur():
     if not tarih or not online_gun_acik_mi(tarih, a):
         return hata('Seçilen gün online randevuya açık değil.')
     saat = v.get('saat')
-    uygun = {x['saat'] for x in online_saat_listesi(tarih, a) if not x['dolu']}
-    if saat not in uygun:
+    istenen = v.get('doktor_id') or None
+    uygun = {x['saat'] for x in online_saat_listesi(tarih, a, doktor_id=istenen) if not x['dolu']}
+    hekim = online_bos_hekim(tarih, saat, doktor_id=istenen) if saat in uygun else None
+    if not hekim:
         return hata('Bu saat az önce doldu. Lütfen başka bir saat seçin.', 409)
     if not v.get('kvkk_onay'):
         return hata('Devam etmek için aydınlatma metnini onaylamanız gerekiyor.')
@@ -1585,7 +1761,7 @@ def online_talep_olustur():
     while OnlineTalep.query.filter_by(kod=kod).first():
         kod = ''.join(secrets.choice(TALEP_KOD_HARFLERI) for _ in range(8))
     t = OnlineTalep(kod=kod, ad_soyad=ad, telefon=telefon_bicimle(v.get('telefon')), tc_kimlik=tc or None, tarih=tarih,
-                    saat=saat, islem_turu=islem, notlar=notlar, kvkk_onay=True, ip=ip, olusturma=simdi)
+                    saat=saat, islem_turu=islem, notlar=notlar, kvkk_onay=True, ip=ip, olusturma=simdi, doktor_id=hekim.id)
     db.session.add(t)
     db.session.flush()
     islem_kaydet('online', 'talep', t.id, f'{ad} · {kisa_tarih(tarih)} {saat} · {islem} (online talep)', ad='Online randevu sayfası')
@@ -1659,8 +1835,12 @@ def online_talep_onayla(talep_id):
         return hata('Geçerli bir saat seçin.')
     if tarih < date.today():
         return hata('Geçmiş bir güne randevu verilemez.')
-    if saat_cakisiyor_mu(tarih, saat, haric_talep=t.id):
-        return hata(f'{kisa_tarih(tarih)} {saat} dolu. Lütfen başka bir saat seçin.', 409)
+    hekim, mesaj = istenen_hekim(v.get('doktor_id') or t.doktor_id)
+    if mesaj:
+        return hata(mesaj)
+    mesaj = saat_uygun_degil(hekim, tarih, saat, haric_talep=t.id)
+    if mesaj:
+        return hata(f'{kisa_tarih(tarih)}: {mesaj} Lütfen başka bir saat seçin.', 409)
 
     if v.get('hasta_id'):
         hasta = db.session.get(Hasta, int(v['hasta_id']))
@@ -1682,20 +1862,21 @@ def online_talep_onayla(talep_id):
     r = Randevu(hasta_id=hasta.id, tarih=tarih, saat=saat, islem_turu=t.islem_turu, durum='Onaylandı',
                 notlar='Online randevu' + (f' · {t.notlar}' if t.notlar else '')
                        + (f' · İstenen: {kisa_tarih(t.tarih)} {t.saat}' if degisti else ''),
-                doktor_id=g.kullanici.id if g.kullanici.doktor_mu else None)
+                doktor_id=hekim.id)
     db.session.add(r)
     db.session.flush()
     t.durum = 'Onaylandı'
     t.hasta_id, t.randevu_id = hasta.id, r.id
     t.isleyen_id, t.islem_zamani = g.kullanici.id, datetime.now()
     t.tarih, t.saat = tarih, saat
+    t.doktor_id = hekim.id
     if degisti:
         t.yanit_notu = 'Saat klinik tarafından değiştirildi.'
     islem_kaydet('guncelleme', 'talep', t.id, f'Online talep onaylandı: {hasta.ad_soyad} · {kisa_tarih(tarih)} {saat}')
     db.session.commit()
 
     gun_metin = f'{tarih.day} {AYLAR[tarih.month - 1]} {GUNLER[tarih.weekday()]}'
-    mesaj = (f'Merhaba {t.ad_soyad.split()[0]}, {KLINIK_ADI} için {gun_metin} saat {saat} {t.islem_turu} randevunuz onaylandı'
+    mesaj = (f'Merhaba {t.ad_soyad.split()[0]}, {KLINIK_ADI} için {gun_metin} saat {saat} {hekim.gorunen_ad} ile {t.islem_turu} randevunuz onaylandı'
              + (' (istediğiniz saat dolu olduğu için saatiniz güncellendi)' if degisti else '')
              + f'. Randevu kodunuz: {t.kod}. Randevunuzu görmek veya iptal etmek için: {url_for("online_takip", kod=t.kod, _external=True)}')
     return jsonify({'mesaj': f'{hasta.ad_soyad} için {kisa_tarih(tarih)} {saat} randevusu oluşturuldu.'
@@ -2109,7 +2290,7 @@ def hatirlatma_metni(r, sablon=None):
     sablon = sablon or ayar('hatirlatma_sablonu')
     degerler = {'ad': r.hasta.ad_soyad.split()[0], 'adsoyad': r.hasta.ad_soyad, 'klinik': KLINIK_ADI,
                 'gun': GUNLER[r.tarih.weekday()], 'tarih': f'{r.tarih.day} {AYLAR[r.tarih.month - 1]}',
-                'saat': r.saat, 'islem': r.islem_turu}
+                'saat': r.saat, 'islem': r.islem_turu, 'hekim': r.doktor.gorunen_ad if r.doktor else ''}
     try:
         return sablon.format(**degerler)
     except (KeyError, IndexError, ValueError):
@@ -2161,9 +2342,9 @@ def hatirlatma_sablonu_kaydet():
     if len(sablon) < 10 or len(sablon) > 600:
         return hata('Mesaj 10–600 karakter olmalıdır.')
     try:
-        sablon.format(ad='', adsoyad='', klinik='', gun='', tarih='', saat='', islem='')
+        sablon.format(ad='', adsoyad='', klinik='', gun='', tarih='', saat='', islem='', hekim='')
     except (KeyError, IndexError, ValueError):
-        return hata('Mesajda yalnızca {ad}, {adsoyad}, {klinik}, {gun}, {tarih}, {saat}, {islem} kullanılabilir.')
+        return hata('Mesajda yalnızca {ad}, {adsoyad}, {klinik}, {gun}, {tarih}, {saat}, {islem}, {hekim} kullanılabilir.')
     ayar_yaz('hatirlatma_sablonu', sablon)
     islem_kaydet('ayar', 'ayar', None, 'Hatırlatma mesajı güncellendi')
     db.session.commit()
@@ -2476,7 +2657,8 @@ def raporlar():
     hizmet_liste = sorted(({'ad': k, **v} for k, v in hizmet.items()), key=lambda x: -x['adet'])
 
     # Yoğunluk: gün × saat
-    saatler = list(range(9, 18))
+    kullanilan = [int(r.saat[:2]) for r in randevular if r.durum != 'İptal']
+    saatler = list(range(min([9] + kullanilan), max([17] + kullanilan) + 1))
     isi = [[0] * len(saatler) for _ in range(6)]
     gun_gelmeme = [[0, 0] for _ in range(7)]  # [gelmedi, sonuçlanan]
     for r in randevular:
@@ -2517,6 +2699,32 @@ def raporlar():
             t_['deger'] += -h.miktar * (h.malzeme.birim_fiyat or 0)
     tuketim_liste = sorted(({'ad': k, **v} for k, v in tuketim.items()), key=lambda x: -x['miktar'])[:6]
 
+    # Hekim kırılımı
+    hekim_ozet = {}
+    for r in randevular:
+        k = r.doktor_id or 0
+        o = hekim_ozet.setdefault(k, {'randevu': 0, 'tamamlanan': 0, 'gelmedi': 0, 'ciro': 0, 'hasta': set()})
+        if r.durum != 'İptal':
+            o['randevu'] += 1
+            o['hasta'].add(r.hasta_id)
+        if r.durum == 'Tamamlandı':
+            o['tamamlanan'] += 1
+        elif r.durum == 'Gelmedi':
+            o['gelmedi'] += 1
+    for h in hareketler:
+        if h.tur == 'ucret' and h.randevu:
+            hekim_ozet.setdefault(h.randevu.doktor_id or 0, {'randevu': 0, 'tamamlanan': 0, 'gelmedi': 0, 'ciro': 0,
+                                                             'hasta': set()})['ciro'] += h.tutar
+    hekim_liste = []
+    for k, o in hekim_ozet.items():
+        d = db.session.get(Doktor, k) if k else None
+        sonuc = o['tamamlanan'] + o['gelmedi']
+        hekim_liste.append({'ad': d.gorunen_ad if d else 'Atanmamış', 'brans': (d.brans or '') if d else '',
+                            'renk': (d.renk if d else None) or '#A78BFA', 'randevu': o['randevu'],
+                            'tamamlanan': o['tamamlanan'], 'gelmedi': o['gelmedi'], 'ciro': o['ciro'],
+                            'hasta': len(o['hasta']), 'gelmeme_orani': round(o['gelmedi'] / sonuc * 100) if sonuc else 0})
+    hekim_liste.sort(key=lambda x: -x['ciro'])
+
     islem_kaydet('goruntuleme', 'rapor', None, f'Raporlar: {etiket}')
     db.session.commit()
     return render_template(
@@ -2534,7 +2742,7 @@ def raporlar():
             'isi': isi, 'saatler': [f'{s:02d}' for s in saatler], 'gunler': GUN_KISA[:6],
             'gun_gelmeme': [{'gun': GUN_KISA[i], 'gelmedi': g_[0], 'toplam': g_[1]} for i, g_ in enumerate(gun_gelmeme[:6])],
             'cinsiyet': cinsiyet, 'yas': [{'ad': k, 'adet': yas.get(k, 0)} for k in yas_sira if yas.get(k)],
-            'sadik': sadik_liste, 'tuketim': tuketim_liste, 'durumlar': durum_say,
+            'sadik': sadik_liste, 'tuketim': tuketim_liste, 'durumlar': durum_say, 'hekimler': hekim_liste,
         },
     )
 
@@ -2550,6 +2758,562 @@ def ilaclar_api():
 # ------------------------------------------------------------------
 # Örnek veri: flask --app app ornek-veri
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Çoklu hekim: çalışma planı ve izinler
+# ------------------------------------------------------------------
+SAAT_DESENI = re.compile(r'^([01]\d|2[0-3]):[03]0$')
+
+
+@app.route('/api/hekim/<int:doktor_id>/plan', methods=['POST'])
+@doktor_gerekli
+def hekim_plan_kaydet(doktor_id):
+    h = db.get_or_404(Doktor, doktor_id)
+    if not h.doktor_mu:
+        return hata('Çalışma planı yalnızca hekimler için tanımlanır.')
+    v = request.get_json(silent=True) or {}
+    calisma = {}
+    for i in range(7):
+        aralik = (v.get('calisma') or {}).get(str(i))
+        if not aralik:
+            calisma[str(i)] = None
+            continue
+        if (not isinstance(aralik, list) or len(aralik) != 2 or not all(SAAT_DESENI.match(str(x)) for x in aralik)):
+            return hata(f'{GUNLER[i]} için geçerli saatler seçin.')
+        bas, bit = aralik
+        if not ('08:00' <= bas < bit <= '20:00'):
+            return hata(f'{GUNLER[i]}: başlangıç bitişten önce olmalı ve saatler 08:00–20:00 arasında kalmalıdır.')
+        calisma[str(i)] = [bas, bit]
+    if not any(calisma.values()):
+        return hata('En az bir çalışma günü seçin.')
+    renk = (v.get('renk') or '').strip()
+    if renk and not re.fullmatch(r'#[0-9A-Fa-f]{6}', renk):
+        return hata('Geçersiz renk.')
+    h.brans = (v.get('brans') or '').strip()[:60] or None
+    h.oda = (v.get('oda') or '').strip()[:40] or None
+    h.renk = renk or h.renk
+    h.online_gorunur = bool(v.get('online_gorunur', True))
+    h.calisma = json.dumps(calisma)
+    # Yeni plana göre mesai dışında kalan gelecek randevular uyarı olarak bildirilir (silinmez)
+    disarida = [r for r in Randevu.query.filter(Randevu.doktor_id == h.id, Randevu.tarih >= date.today(),
+                                                Randevu.durum.in_(['Bekliyor', 'Onaylandı'])).all()
+                if r.saat in mesai_disi_saatler(h, r.tarih)[0]]
+    islem_kaydet('ayar', 'kullanici', h.id, f'{h.gorunen_ad} çalışma planı güncellendi')
+    db.session.commit()
+    mesaj = f'{h.gorunen_ad} çalışma planı kaydedildi.'
+    if disarida:
+        mesaj += f' Dikkat: {len(disarida)} randevu artık mesai dışında kalıyor; Randevular sayfasından erteleyebilirsiniz.'
+    return jsonify({'mesaj': mesaj, 'hekim': hekim_sozluk(h, tam=True), 'uyari': len(disarida)})
+
+
+@app.route('/api/hekim/<int:doktor_id>/izin', methods=['POST'])
+@doktor_gerekli
+def hekim_izin_ekle(doktor_id):
+    h = db.get_or_404(Doktor, doktor_id)
+    v = request.get_json(silent=True) or {}
+    bas, bit = tarih_coz(v.get('bas')), tarih_coz(v.get('bit') or v.get('bas'))
+    if not bas or not bit or bit < bas:
+        return hata('Geçerli bir izin aralığı seçin.')
+    if bit < date.today():
+        return hata('Geçmiş tarihler için izin girilemez.')
+    if (bit - bas).days > 120:
+        return hata('Tek seferde en fazla 120 günlük izin girilebilir.')
+    iz = HekimIzin(doktor_id=h.id, bas=bas, bit=bit, aciklama=(v.get('aciklama') or '').strip()[:120] or None)
+    db.session.add(iz)
+    cakisan = Randevu.query.filter(Randevu.doktor_id == h.id, Randevu.tarih >= bas, Randevu.tarih <= bit,
+                                   Randevu.durum.in_(['Bekliyor', 'Onaylandı'])).count()
+    islem_kaydet('ayar', 'kullanici', h.id, f'{h.gorunen_ad} izin: {kisa_tarih(bas)} – {kisa_tarih(bit)}')
+    db.session.commit()
+    mesaj = f'İzin eklendi ({kisa_tarih(bas)} – {kisa_tarih(bit)}).'
+    if cakisan:
+        mesaj += f' Bu aralıkta {cakisan} aktif randevu var; ertelemeyi unutmayın.'
+    return jsonify({'mesaj': mesaj, 'hekim': hekim_sozluk(h, tam=True), 'cakisan': cakisan}), 201
+
+
+@app.route('/api/izin/<int:izin_id>', methods=['DELETE'])
+@doktor_gerekli
+def hekim_izin_sil(izin_id):
+    iz = db.get_or_404(HekimIzin, izin_id)
+    h = iz.doktor
+    db.session.delete(iz)
+    islem_kaydet('ayar', 'kullanici', h.id, f'{h.gorunen_ad} izni kaldırıldı')
+    db.session.commit()
+    return jsonify({'mesaj': 'İzin kaldırıldı.', 'hekim': hekim_sozluk(h, tam=True)})
+
+
+# ------------------------------------------------------------------
+# Bekleme salonu: geliş, sıra ve çağrı ekranı
+# ------------------------------------------------------------------
+VARSAYILAN_AYARLAR['salon_sure'] = '15'
+VARSAYILAN_AYARLAR['salon_mesaj'] = 'Lütfen sıranızı bekleyiniz. Geçmiş olsun.'
+VARSAYILAN_AYARLAR['salon_isim'] = 'kisalt'   # kisalt: "Zeynep D." · numara: yalnızca sıra numarası
+
+
+def salon_anahtari():
+    a = ayar('salon_anahtari')
+    if not a:
+        a = secrets.token_urlsafe(9)
+        ayar_yaz('salon_anahtari', a)
+        db.session.commit()
+    return a
+
+
+def maskeli_ad(ad_soyad):
+    p = (ad_soyad or '').split()
+    if not p:
+        return ''
+    return p[0] if len(p) == 1 else f'{p[0]} {p[-1][0]}.'
+
+
+def bugun_sira(doktor_id=None):
+    q = Randevu.query.filter(Randevu.tarih == date.today(), Randevu.durum.in_(['Bekliyor', 'Onaylandı', 'Tamamlandı']))
+    if doktor_id:
+        q = q.filter(Randevu.doktor_id == doktor_id)
+    return q.order_by(Randevu.saat.asc()).all()
+
+
+def tahmini_bekleme(randevular):
+    """Gelmiş ve henüz çağrılmamış hastalar için hekim başına sıra ve tahmini bekleme (dk)."""
+    sure = max(5, min(90, int(ayar('salon_sure') or 15)))
+    simdi = datetime.now()
+    sonuc, sayac = {}, {}
+    for r in sorted([r for r in randevular if r.geldi and not r.cagrildi and r.durum != 'Tamamlandı'],
+                    key=lambda r: (r.saat, r.sira_no or 0)):
+        n = sayac.get(r.doktor_id, 0)
+        sayac[r.doktor_id] = n + 1
+        randevu_ani = datetime.combine(r.tarih, datetime.strptime(r.saat, '%H:%M').time())
+        tahmin = max(simdi + timedelta(minutes=n * sure), randevu_ani)
+        sonuc[r.id] = {'sira': n + 1, 'dk': max(0, round((tahmin - simdi).total_seconds() / 60))}
+    return sonuc
+
+
+def sira_sozluk(r, bekleme):
+    v = r.sozluk()
+    v.update({'oda': r.doktor.oda if r.doktor else '', 'cagri_sayisi': r.cagri_sayisi or 0,
+              'bekleme': bekleme.get(r.id)})
+    return v
+
+
+@app.route('/api/sira')
+def sira_listesi():
+    randevular = bugun_sira(request.args.get('doktor_id', type=int))
+    bekleme = tahmini_bekleme(randevular)
+    return jsonify({'liste': [sira_sozluk(r, bekleme) for r in randevular],
+                    'salon_link': url_for('salon_ekrani', anahtar=salon_anahtari(), _external=True),
+                    'ayar': {'sure': int(ayar('salon_sure') or 15), 'mesaj': ayar('salon_mesaj'), 'isim': ayar('salon_isim')}})
+
+
+@app.route('/api/randevu/<int:randevu_id>/geldi', methods=['POST'])
+def randevu_geldi(randevu_id):
+    r = db.get_or_404(Randevu, randevu_id)
+    if (request.get_json(silent=True) or {}).get('geri_al'):
+        r.geldi = r.cagrildi = None
+        r.sira_no = None
+        r.cagri_sayisi = 0
+        db.session.commit()
+        return jsonify({'mesaj': 'Geliş kaydı geri alındı.', 'randevu': r.sozluk()})
+    if r.tarih != date.today():
+        return hata('Yalnızca bugünkü randevular için geliş kaydedilebilir.')
+    if r.durum not in ('Bekliyor', 'Onaylandı'):
+        return hata(f'Bu randevu "{r.durum}" durumunda.')
+    if not r.geldi:
+        son = db.session.query(func.max(Randevu.sira_no)).filter(Randevu.tarih == r.tarih).scalar() or 0
+        r.geldi = datetime.now()
+        r.sira_no = son + 1
+        if r.durum == 'Bekliyor':
+            r.durum = 'Onaylandı'
+        islem_kaydet('guncelleme', 'randevu', r.id, f'{r.hasta.ad_soyad} geldi · sıra {r.sira_no}')
+    db.session.commit()
+    return jsonify({'mesaj': f'{r.hasta.ad_soyad} bekleme salonuna alındı · Sıra no {r.sira_no}.', 'randevu': r.sozluk()})
+
+
+@app.route('/api/randevu/<int:randevu_id>/cagir', methods=['POST'])
+def randevu_cagir(randevu_id):
+    r = db.get_or_404(Randevu, randevu_id)
+    if r.tarih != date.today() or r.durum not in ('Bekliyor', 'Onaylandı'):
+        return hata('Yalnızca bugünkü aktif randevular çağrılabilir.')
+    if not r.geldi:
+        son = db.session.query(func.max(Randevu.sira_no)).filter(Randevu.tarih == r.tarih).scalar() or 0
+        r.geldi, r.sira_no = datetime.now(), son + 1
+    r.cagrildi = datetime.now()
+    r.cagri_sayisi = (r.cagri_sayisi or 0) + 1
+    if r.durum == 'Bekliyor':
+        r.durum = 'Onaylandı'
+    islem_kaydet('guncelleme', 'randevu', r.id, f'{r.hasta.ad_soyad} muayeneye çağrıldı ({r.cagri_sayisi}. çağrı)')
+    db.session.commit()
+    return jsonify({'mesaj': f'{r.hasta.ad_soyad} çağrıldı' + (' (tekrar)' if r.cagri_sayisi > 1 else '') + '.',
+                    'randevu': r.sozluk()})
+
+
+@app.route('/api/salon/ayar', methods=['POST'])
+@doktor_gerekli
+def salon_ayar_kaydet():
+    v = request.get_json(silent=True) or {}
+    try:
+        sure = int(v.get('sure') or 15)
+    except (TypeError, ValueError):
+        return hata('Ortalama muayene süresi sayı olmalıdır.')
+    if not 5 <= sure <= 90:
+        return hata('Ortalama muayene süresi 5–90 dakika arasında olmalıdır.')
+    ayar_yaz('salon_sure', str(sure))
+    ayar_yaz('salon_mesaj', (v.get('mesaj') or '').strip()[:160])
+    ayar_yaz('salon_isim', 'numara' if v.get('isim') == 'numara' else 'kisalt')
+    if v.get('anahtar_yenile'):
+        ayar_yaz('salon_anahtari', secrets.token_urlsafe(9))
+    islem_kaydet('ayar', 'ayar', None, 'Bekleme salonu ayarları güncellendi' + (' (ekran bağlantısı yenilendi)' if v.get('anahtar_yenile') else ''))
+    db.session.commit()
+    return jsonify({'mesaj': 'Bekleme salonu ayarları kaydedildi.',
+                    'salon_link': url_for('salon_ekrani', anahtar=salon_anahtari(), _external=True)})
+
+
+@app.route('/salon/<anahtar>')
+def salon_ekrani(anahtar):
+    if not secrets.compare_digest(anahtar, salon_anahtari()):
+        abort(404)
+    return render_template('salon.html', anahtar=anahtar, klinik_adi=KLINIK_ADI)
+
+
+@app.route('/api/salon/<anahtar>/durum')
+def salon_durum(anahtar):
+    if not secrets.compare_digest(anahtar, salon_anahtari()):
+        return hata('Geçersiz ekran bağlantısı.', 404)
+    yalniz_numara = ayar('salon_isim') == 'numara'
+    randevular = bugun_sira()
+    bekleme = tahmini_bekleme(randevular)
+
+    def kisi(r):
+        return {'sira_no': r.sira_no, 'ad': '' if yalniz_numara else maskeli_ad(r.hasta.ad_soyad),
+                'hekim': r.doktor.gorunen_ad if r.doktor else '', 'oda': (r.doktor.oda if r.doktor else '') or '',
+                'renk': (r.doktor.renk if r.doktor else None) or '#A78BFA'}
+
+    cagrilar = sorted([r for r in randevular if r.cagrildi], key=lambda r: r.cagrildi, reverse=True)
+    bekleyenler = sorted([r for r in randevular if r.id in bekleme], key=lambda r: (bekleme[r.id]['dk'], r.sira_no or 0))
+    return jsonify({
+        'klinik': KLINIK_ADI, 'mesaj': ayar('salon_mesaj'), 'simdi': datetime.now().strftime('%H:%M'),
+        'cagrilar': [{**kisi(r), 'anahtar': f'{r.id}-{r.cagri_sayisi}', 'zaman': r.cagrildi.strftime('%H:%M'),
+                      'yeni': (datetime.now() - r.cagrildi).total_seconds() < 600} for r in cagrilar[:6]],
+        'bekleyenler': [{**kisi(r), 'dk': bekleme[r.id]['dk']} for r in bekleyenler[:8]],
+        'bekleyen_sayi': len(bekleyenler),
+    })
+
+
+# ------------------------------------------------------------------
+# Tahlil / görüntüleme dosyaları ve laboratuvar değerleri
+# ------------------------------------------------------------------
+LAB_TESTLERI = {
+    # anahtar: (ad, birim, referans (min, max) veya cinsiyete göre {'Kadın':…, 'Erkek':…}, grup)
+    'hgb': ('Hemoglobin', 'g/dL', {'Kadın': (12.0, 15.5), 'Erkek': (13.5, 17.5)}, 'Hemogram'),
+    'wbc': ('Lökosit (WBC)', '10³/µL', (4.0, 10.0), 'Hemogram'),
+    'plt': ('Trombosit (PLT)', '10³/µL', (150, 400), 'Hemogram'),
+    'glu': ('Açlık kan şekeri', 'mg/dL', (70, 100), 'Biyokimya'),
+    'hba1c': ('HbA1c', '%', (4.0, 5.6), 'Biyokimya'),
+    'kre': ('Kreatinin', 'mg/dL', {'Kadın': (0.5, 1.1), 'Erkek': (0.7, 1.3)}, 'Biyokimya'),
+    'ure': ('Üre', 'mg/dL', (17, 43), 'Biyokimya'),
+    'alt': ('ALT', 'U/L', (0, 40), 'Biyokimya'),
+    'ast': ('AST', 'U/L', (0, 40), 'Biyokimya'),
+    'kol': ('Total kolesterol', 'mg/dL', (None, 200), 'Lipid'),
+    'ldl': ('LDL kolesterol', 'mg/dL', (None, 130), 'Lipid'),
+    'hdl': ('HDL kolesterol', 'mg/dL', {'Kadın': (50, None), 'Erkek': (40, None)}, 'Lipid'),
+    'tg': ('Trigliserid', 'mg/dL', (None, 150), 'Lipid'),
+    'tsh': ('TSH', 'mIU/L', (0.4, 4.0), 'Tiroid'),
+    'st4': ('Serbest T4', 'ng/dL', (0.8, 1.8), 'Tiroid'),
+    'd3': ('D vitamini (25-OH)', 'ng/mL', (30, 100), 'Vitamin / mineral'),
+    'b12': ('B12 vitamini', 'pg/mL', (200, 900), 'Vitamin / mineral'),
+    'fer': ('Ferritin', 'ng/mL', {'Kadın': (15, 150), 'Erkek': (30, 400)}, 'Vitamin / mineral'),
+    'crp': ('CRP', 'mg/L', (None, 5), 'Diğer'),
+}
+DOSYA_TURLERI = {'pdf': ('application/pdf', [b'%PDF']), 'png': ('image/png', [b'\x89PNG']),
+                 'jpg': ('image/jpeg', [b'\xff\xd8\xff']), 'jpeg': ('image/jpeg', [b'\xff\xd8\xff']),
+                 'webp': ('image/webp', [b'RIFF'])}
+DOSYA_SINIRI = 20 * 1024 * 1024
+
+
+def lab_referans(test, hasta):
+    t = LAB_TESTLERI[test]
+    ref = t[2]
+    if isinstance(ref, dict):
+        ref = ref.get(hasta.cinsiyet) or (min(r[0] or 0 for r in ref.values()), max(r[1] or 0 for r in ref.values()) or None)
+    return ref
+
+
+def lab_test_listesi(hasta):
+    liste = []
+    for k, t in LAB_TESTLERI.items():
+        mn, mx = lab_referans(k, hasta)
+        liste.append({'test': k, 'ad': t[0], 'birim': t[1], 'ref_min': mn, 'ref_max': mx, 'grup': t[3]})
+    return liste
+
+
+def hasta_dosya_klasoru(hasta_id, olustur=True):
+    yol = os.path.join(app.instance_path, 'hasta_dosyalari', str(int(hasta_id)))
+    if olustur:
+        os.makedirs(yol, exist_ok=True)
+    return yol
+
+
+def sayi_coz(deger):
+    if deger in (None, ''):
+        return None
+    try:
+        x = float(str(deger).replace(',', '.').strip())
+    except ValueError:
+        raise ValueError
+    if math.isnan(x) or math.isinf(x):
+        raise ValueError
+    return x
+
+
+@app.route('/api/hasta/<int:hasta_id>/dosya', methods=['POST'])
+@doktor_gerekli
+def dosya_yukle(hasta_id):
+    hasta = db.get_or_404(Hasta, hasta_id)
+    f = request.files.get('dosya')
+    if not f or not f.filename:
+        return hata('Yüklenecek dosyayı seçin.')
+    uzanti = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+    if uzanti not in DOSYA_TURLERI:
+        return hata('Yalnızca PDF, JPG, PNG veya WEBP dosyaları yüklenebilir.')
+    icerik = f.read(DOSYA_SINIRI + 1)
+    if len(icerik) > DOSYA_SINIRI:
+        return hata('Dosya en fazla 20 MB olabilir.', 413)
+    mime, imzalar = DOSYA_TURLERI[uzanti]
+    if not any(icerik.startswith(i) for i in imzalar) or (uzanti == 'webp' and icerik[8:12] != b'WEBP'):
+        return hata('Dosya içeriği uzantısıyla uyuşmuyor; bozuk veya farklı türde bir dosya olabilir.')
+    tur = request.form.get('tur') if request.form.get('tur') in HastaDosyasi.TURLER else ('goruntu' if mime.startswith('image/') else 'tahlil')
+    tarih = tarih_coz(request.form.get('tarih')) or date.today()
+    if tarih > date.today():
+        return hata('Belge tarihi ileri bir tarih olamaz.')
+    disk_adi = f'{secrets.token_hex(12)}.{uzanti}'
+    with open(os.path.join(hasta_dosya_klasoru(hasta.id), disk_adi), 'wb') as cikti:
+        cikti.write(icerik)
+    ad = re.sub(r'[\\/\x00-\x1f]', '_', f.filename)[-160:]
+    d = HastaDosyasi(hasta_id=hasta.id, tur=tur, ad=ad, dosya_adi=disk_adi, mime=mime, boyut=len(icerik), tarih=tarih,
+                     aciklama=(request.form.get('aciklama') or '').strip()[:300] or None, yukleyen_id=g.kullanici.id)
+    db.session.add(d)
+    db.session.flush()
+    islem_kaydet('olusturma', 'dosya', d.id, f'{hasta.ad_soyad}: {ad} yüklendi')
+    db.session.commit()
+    return jsonify({'mesaj': f'{ad} yüklendi.', 'dosya': d.sozluk()}), 201
+
+
+@app.route('/dosya/<int:dosya_id>')
+@doktor_gerekli
+def dosya_goster(dosya_id):
+    d = db.get_or_404(HastaDosyasi, dosya_id)
+    yol = os.path.join(hasta_dosya_klasoru(d.hasta_id, olustur=False), d.dosya_adi)
+    if not os.path.exists(yol):
+        abort(404)
+    indir = bool(request.args.get('indir'))
+    islem_kaydet('indirme' if indir else 'goruntuleme', 'dosya', d.id, f'{d.hasta.ad_soyad}: {d.ad}')
+    db.session.commit()
+    yanit = send_file(yol, mimetype=d.mime, as_attachment=indir, download_name=d.ad, max_age=0)
+    yanit.headers['X-Content-Type-Options'] = 'nosniff'
+    yanit.headers['Cache-Control'] = 'private, no-store'
+    return yanit
+
+
+@app.route('/api/dosya/<int:dosya_id>', methods=['PUT'])
+@doktor_gerekli
+def dosya_guncelle(dosya_id):
+    d = db.get_or_404(HastaDosyasi, dosya_id)
+    v = request.get_json(silent=True) or {}
+    if v.get('tur') in HastaDosyasi.TURLER:
+        d.tur = v['tur']
+    t = tarih_coz(v.get('tarih'))
+    if t:
+        if t > date.today():
+            return hata('Belge tarihi ileri bir tarih olamaz.')
+        d.tarih = t
+    if 'aciklama' in v:
+        d.aciklama = (v.get('aciklama') or '').strip()[:300] or None
+    db.session.commit()
+    return jsonify({'mesaj': 'Dosya bilgileri güncellendi.', 'dosya': d.sozluk()})
+
+
+@app.route('/api/dosya/<int:dosya_id>', methods=['DELETE'])
+@doktor_gerekli
+def dosya_sil(dosya_id):
+    d = db.get_or_404(HastaDosyasi, dosya_id)
+    yol = os.path.join(hasta_dosya_klasoru(d.hasta_id, olustur=False), d.dosya_adi)
+    LabSonuc.query.filter_by(dosya_id=d.id).update({'dosya_id': None})
+    islem_kaydet('silme', 'dosya', d.id, f'{d.hasta.ad_soyad}: {d.ad} silindi')
+    db.session.delete(d)
+    db.session.commit()
+    if os.path.exists(yol):
+        os.remove(yol)
+    return jsonify({'mesaj': 'Dosya silindi. Bağlı laboratuvar değerleri korunur.'})
+
+
+@app.route('/api/hasta/<int:hasta_id>/lab', methods=['POST'])
+@doktor_gerekli
+def lab_ekle(hasta_id):
+    hasta = db.get_or_404(Hasta, hasta_id)
+    v = request.get_json(silent=True) or {}
+    tarih = tarih_coz(v.get('tarih'))
+    if not tarih or tarih > date.today():
+        return hata('Geçerli bir tahlil tarihi seçin (ileri tarih olamaz).')
+    dosya = None
+    if v.get('dosya_id'):
+        dosya = HastaDosyasi.query.filter_by(id=v['dosya_id'], hasta_id=hasta.id).first()
+        if not dosya:
+            return hata('Seçilen dosya bu hastaya ait değil.')
+    eklenen = []
+    for i, s in enumerate(v.get('sonuclar') or []):
+        test = (s.get('test') or '').strip()
+        try:
+            deger = sayi_coz(s.get('deger'))
+            mn, mx = sayi_coz(s.get('ref_min')), sayi_coz(s.get('ref_max'))
+        except ValueError:
+            return hata(f'{i + 1}. satırda geçersiz sayı var.')
+        if deger is None:
+            continue
+        if test in LAB_TESTLERI:
+            ad, birim = LAB_TESTLERI[test][0], LAB_TESTLERI[test][1]
+        else:
+            ad = re.sub(r'\s+', ' ', (s.get('ad') or '').strip())[:80]
+            birim = (s.get('birim') or '').strip()[:20]
+            if len(ad) < 2:
+                return hata(f'{i + 1}. satır: özel test için ad yazın.')
+            test = 'ozel:' + ad.lower()[:34]
+        if mn is not None and mx is not None and mn > mx:
+            return hata(f'{ad}: referans alt sınırı üst sınırdan büyük olamaz.')
+        l = LabSonuc(hasta_id=hasta.id, dosya_id=dosya.id if dosya else None, tarih=tarih, test=test, ad=ad, deger=deger,
+                     birim=birim or None, ref_min=mn, ref_max=mx, notlar=(s.get('notlar') or '').strip()[:200] or None,
+                     giren_id=g.kullanici.id)
+        db.session.add(l)
+        eklenen.append(l)
+    if not eklenen:
+        return hata('En az bir test için değer girin.')
+    db.session.flush()
+    disari = [l for l in eklenen if l.durum != 'normal']
+    islem_kaydet('olusturma', 'lab', hasta.id, f'{hasta.ad_soyad}: {len(eklenen)} tahlil değeri ({kisa_tarih(tarih)})')
+    db.session.commit()
+    mesaj = f'{len(eklenen)} değer kaydedildi.'
+    if disari:
+        mesaj += ' Referans dışı: ' + ', '.join(f"{l.ad} {('↑' if l.durum == 'yuksek' else '↓')}" for l in disari) + '.'
+    return jsonify({'mesaj': mesaj, 'sonuclar': [l.sozluk() for l in eklenen], 'referans_disi': len(disari)}), 201
+
+
+@app.route('/api/lab/<int:lab_id>', methods=['DELETE'])
+@doktor_gerekli
+def lab_sil(lab_id):
+    l = db.get_or_404(LabSonuc, lab_id)
+    islem_kaydet('silme', 'lab', l.hasta_id, f'{l.hasta.ad_soyad}: {l.ad} ({kisa_tarih(l.tarih)}) silindi')
+    db.session.delete(l)
+    db.session.commit()
+    return jsonify({'mesaj': 'Değer silindi.'})
+
+
+# ------------------------------------------------------------------
+# Ctrl+K komut paleti araması
+# ------------------------------------------------------------------
+_TR_SADE = str.maketrans('çğıöşüâîû', 'cgiosuaiu')
+
+
+def sade(metin):
+    """Türkçe büyük/küçük harf ve aksan farkını yok sayan arama anahtarı."""
+    m = (metin or '').replace('İ', 'i').replace('I', 'ı').lower()
+    return m.translate(_TR_SADE)
+
+
+@app.route('/api/ara')
+def genel_arama():
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({'hastalar': [], 'randevular': [], 'malzemeler': []})
+    s_ = sade(q)
+    rakam = re.sub(r'\D', '', q)
+    hastalar = []
+    for h in Hasta.query.order_by(Hasta.ad_soyad.asc()).all():
+        ad = sade(h.ad_soyad)
+        puan = 3 if ad.startswith(s_) else 2 if any(p.startswith(s_) for p in ad.split()) else 1 if s_ in ad else 0
+        if not puan and len(rakam) >= 3 and (rakam in (h.tc_kimlik or '') or rakam in telefon_normal(h.telefon)):
+            puan = 1
+        if puan:
+            hastalar.append((puan, h))
+    hastalar.sort(key=lambda x: (-x[0], x[1].ad_soyad))
+    eslesen_idler = {h.id for _, h in hastalar}
+    bugun = date.today()
+    randevular = []
+    if eslesen_idler:
+        for r in (Randevu.query.filter(Randevu.hasta_id.in_(eslesen_idler), Randevu.tarih >= bugun - timedelta(days=7),
+                                       Randevu.durum != 'İptal')
+                  .order_by(Randevu.tarih.asc(), Randevu.saat.asc()).limit(6).all()):
+            randevular.append({'id': r.id, 'hasta_ad': r.hasta.ad_soyad, 'hasta_id': r.hasta_id, 'tarih': r.tarih.isoformat(),
+                               'metin': f'{kisa_tarih(r.tarih)} {r.saat} · {r.islem_turu}', 'durum': r.durum,
+                               'hekim': r.doktor.gorunen_ad if r.doktor else ''})
+    malzemeler = [{'id': m.id, 'ad': m.ad, 'miktar': m.miktar, 'birim': m.birim, 'durum': m.durum}
+                  for m in Malzeme.query.filter_by(aktif=True).all() if s_ in sade(m.ad)][:4]
+    return jsonify({
+        'hastalar': [{'id': h.id, 'ad_soyad': h.ad_soyad, 'alt': ' · '.join(x for x in [h.maskeli_tc, h.telefon] if x),
+                      'bas_harfler': h.bas_harfler, 'alerji': bool(h.alerjisi_var)} for _, h in hastalar[:6]],
+        'randevular': randevular, 'malzemeler': malzemeler,
+    })
+
+
+# ------------------------------------------------------------------
+# Telefondan erişim (aynı Wi-Fi ağındaki cihazlar)
+# ------------------------------------------------------------------
+def yerel_ip():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as so:
+            so.connect(('10.255.255.255', 1))   # paket gönderilmez; yalnızca çıkış arayüzü seçilir
+            return so.getsockname()[0]
+    except OSError:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except OSError:
+            return '127.0.0.1'
+
+
+@app.route('/api/telefon_adresi')
+def telefon_adresi():
+    port = request.host.rsplit(':', 1)[1] if ':' in request.host else ('443' if request.scheme == 'https' else '80')
+    ip = yerel_ip()
+    yerel_mi = request.host.split(':')[0] in ('127.0.0.1', 'localhost')
+    adres = f'{request.scheme}://{ip}:{port}' if yerel_mi or request.host.split(':')[0] != ip else request.host_url.rstrip('/')
+    return jsonify({'adres': adres, 'ip': ip, 'dis_erisim': app.config.get('LAN_ACIK', not yerel_mi),
+                    'online_adres': adres + url_for('online_randevu')})
+
+
+
+def ornek_tahlil_pdf(hasta, tarih, satirlar):
+    """Demo için tek sayfalık, bağımlılıksız basit bir tahlil sonuç PDF'i üretir."""
+    harf = str.maketrans('ğĞşŞıİ', 'gGsSiI')
+
+    def yaz(x, y, boyut, metin, kalin=False):
+        m = metin.translate(harf).replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+        return f'BT /{"F2" if kalin else "F1"} {boyut} Tf {x} {y} Td ({m}) Tj ET'
+
+    akis = ['0.36 0.17 0.71 rg 0 772 595 70 re f', '1 1 1 rg',
+            yaz(48, 806, 18, 'Ornek Laboratuvar', True), yaz(48, 788, 10, 'Tahlil sonuc raporu - demo belge'), '0 0 0 rg',
+            yaz(48, 740, 11, f'Hasta: {hasta.ad_soyad}', True), yaz(48, 724, 10, f'Numune tarihi: {tarih.strftime("%d.%m.%Y")}'),
+            yaz(330, 740, 10, f'Protokol: L-{tarih.strftime("%y%m%d")}-{hasta.id:04d}'),
+            '0.85 0.85 0.9 RG 1 w 48 700 m 547 700 l S',
+            yaz(48, 684, 10, 'Test', True), yaz(260, 684, 10, 'Sonuc', True), yaz(340, 684, 10, 'Birim', True),
+            yaz(430, 684, 10, 'Referans aralik', True), '48 676 m 547 676 l S']
+    y = 656
+    for ad, deger, birim, ref in satirlar:
+        akis += [yaz(48, y, 11, ad), yaz(260, y, 11, deger, True), yaz(340, y, 11, birim), yaz(430, y, 11, ref)]
+        y -= 24
+    akis += [f'48 {y + 8} m 547 {y + 8} l S',
+             yaz(48, y - 18, 9, 'Bu belge Klinik.SaaS demo verisidir; gercek bir hastaya ait degildir.')]
+    akis_b = '\n'.join(akis).encode('latin-1', 'replace')
+    nesneler = [b'<< /Type /Catalog /Pages 2 0 R >>', b'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+                b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+                b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+                b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+                b'<< /Length ' + str(len(akis_b)).encode() + b' >>\nstream\n' + akis_b + b'\nendstream']
+    cikti, konumlar = b'%PDF-1.4\n', []
+    for i, n in enumerate(nesneler, 1):
+        konumlar.append(len(cikti))
+        cikti += str(i).encode() + b' 0 obj\n' + n + b'\nendobj\n'
+    xref = len(cikti)
+    cikti += b'xref\n0 ' + str(len(nesneler) + 1).encode() + b'\n0000000000 65535 f \n'
+    cikti += b''.join(f'{k:010d} 00000 n \n'.encode() for k in konumlar)
+    cikti += b'trailer\n<< /Size ' + str(len(nesneler) + 1).encode() + b' /Root 1 0 R >>\nstartxref\n' + str(xref).encode() + b'\n%%EOF\n'
+    return cikti
+
+
 @app.cli.command('ornek-veri')
 def ornek_veri():
     """Arayüzü denemek için örnek kullanıcı, hasta, randevu, muayene, vital ve reçete ekler."""
@@ -2825,6 +3589,102 @@ def ek_ornek_veri():
         db.session.commit()
         print(f'Raporlar için {eklenen} geçmiş randevu (6 ay) eklendi.')
 
+    # --- Çoklu hekim: ikinci hekim, çalışma planları ve izin ---
+    if doktor and doktor.email == 'doktor@klinik.local' and ayar('demo_hekim') != '1':
+        import random as _r
+        rnd = _r.Random(7)
+        doktor.brans, doktor.oda = 'Aile hekimliği', 'Muayene odası 1'
+        doktor.calisma = json.dumps({**{str(i): ['09:00', '18:00'] for i in range(6)}, '6': None})
+        selin = Doktor.query.filter_by(email='selin@klinik.local').first()
+        if not selin:
+            selin = Doktor(ad_soyad='Selin Arslan', email='selin@klinik.local', rol='doktor', brans='Dahiliye',
+                           oda='Muayene odası 2', renk=HEKIM_RENKLERI[1])
+            selin.sifre_belirle('klinik123')
+            selin.calisma = json.dumps({'0': ['10:00', '17:00'], '1': ['13:00', '19:00'], '2': ['10:00', '17:00'],
+                                        '3': None, '4': ['10:00', '17:00'], '5': None, '6': None})
+            db.session.add(selin)
+            db.session.flush()
+            db.session.add(HekimIzin(doktor_id=selin.id, bas=bugun + timedelta(days=9), bit=bugun + timedelta(days=10),
+                                     aciklama='Kongre'))
+        db.session.flush()
+        # Geçmiş randevuların bir kısmı ve uygun gelecek randevular ikinci hekime
+        aktarilan = 0
+        for r in Randevu.query.filter(Randevu.doktor_id == doktor.id, Randevu.tarih != bugun).all():
+            if r.saat in mesai_disi_saatler(selin, r.tarih)[0] or rnd.random() > 0.45:
+                continue
+            if r.tarih > bugun and r.saat in dolu_saat_kumesi(r.tarih, haric_randevu=r.id, doktor_id=selin.id):
+                continue
+            r.doktor_id = selin.id
+            aktarilan += 1
+        for m in Muayene.query.filter(Muayene.randevu_id.isnot(None)).all():
+            if m.randevu and m.randevu.doktor_id == selin.id:
+                m.doktor_id = selin.id
+        # Bugünün ilk aktif randevusu salonda beklesin
+        ilk = (Randevu.query.filter(Randevu.tarih == bugun, Randevu.durum.in_(['Bekliyor', 'Onaylandı']))
+               .order_by(Randevu.saat.asc()).first())
+        if ilk and not ilk.geldi:
+            ilk.geldi, ilk.sira_no, ilk.durum = simdi, 1, 'Onaylandı'
+        ayar_yaz('demo_hekim', '1')
+        db.session.commit()
+        print(f'İkinci hekim (selin@klinik.local / klinik123), çalışma planları eklendi; {aktarilan} randevu ona aktarıldı.')
+
+    # --- Tahlil değerleri ve örnek tahlil belgesi ---
+    if not LabSonuc.query.count():
+        zeynep = Hasta.query.filter_by(tc_kimlik='12345678978').first()
+        mehmet = Hasta.query.filter_by(tc_kimlik='28456789015').first()
+        eklenen = 0
+
+        def ekle(h, test, gun_once, deger, dosya=None):
+            mn, mx = lab_referans(test, h)
+            db.session.add(LabSonuc(hasta_id=h.id, test=test, ad=LAB_TESTLERI[test][0], birim=LAB_TESTLERI[test][1],
+                                    ref_min=mn, ref_max=mx, deger=deger, tarih=bugun - timedelta(days=gun_once),
+                                    giren_id=did, dosya_id=dosya.id if dosya else None))
+
+        if zeynep:
+            belge = HastaDosyasi(hasta_id=zeynep.id, tur='tahlil', ad='tiroid_paneli.pdf', dosya_adi=f'{secrets.token_hex(12)}.pdf',
+                                 mime='application/pdf', tarih=bugun - timedelta(days=17), aciklama='Tiroid paneli ve hemogram',
+                                 yukleyen_id=did)
+            icerik = ornek_tahlil_pdf(zeynep, bugun - timedelta(days=17), [
+                ('TSH', '2,9', 'mIU/L', '0,4 - 4,0'), ('Serbest T4', '1,3', 'ng/dL', '0,8 - 1,8'),
+                ('Hemoglobin', '12,4', 'g/dL', '12,0 - 15,5'), ('Ferritin', '12', 'ng/mL', '15 - 150'),
+                ('D vitamini (25-OH)', '27', 'ng/mL', '30 - 100')])
+            with open(os.path.join(hasta_dosya_klasoru(zeynep.id), belge.dosya_adi), 'wb') as f:
+                f.write(icerik)
+            belge.boyut = len(icerik)
+            db.session.add(belge)
+            db.session.flush()
+            for test, seri in {'tsh': [(200, 8.9), (120, 6.2), (60, 4.6), (17, 2.9)], 'st4': [(200, 0.7), (120, 0.9), (60, 1.1), (17, 1.3)],
+                               'hgb': [(60, 11.6), (17, 12.4)], 'd3': [(120, 14), (17, 27)], 'fer': [(17, 12)]}.items():
+                for gun_once, deger in seri:
+                    ekle(zeynep, test, gun_once, deger, belge if gun_once == 17 else None)
+                    eklenen += 1
+        if mehmet:
+            for test, seri in {'glu': [(150, 168), (90, 142), (30, 131), (5, 118)], 'hba1c': [(150, 8.4), (60, 7.6), (5, 6.9)],
+                               'ldl': [(90, 162), (5, 138)], 'kre': [(5, 1.0)]}.items():
+                for gun_once, deger in seri:
+                    ekle(mehmet, test, gun_once, deger)
+                    eklenen += 1
+        db.session.commit()
+        if eklenen:
+            print(f'{eklenen} tahlil değeri ve 1 örnek tahlil belgesi eklendi.')
+
+
+with app.app_context():
+    hekim_atamalari()
+
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Varsayılan olarak aynı Wi-Fi ağındaki telefon/tabletlerden de açılır.
+    # Yalnızca bu bilgisayardan erişim için:  set KLINIK_YALNIZ_YEREL=1
+    yalniz_yerel = os.environ.get('KLINIK_YALNIZ_YEREL') == '1'
+    port = int(os.environ.get('PORT', '5000'))
+    hata_ayiklama = os.environ.get('KLINIK_DEBUG') == '1'
+    app.config['LAN_ACIK'] = not yalniz_yerel
+    print('\n  Klinik.SaaS çalışıyor')
+    print(f'  Bu bilgisayarda : http://127.0.0.1:{port}')
+    if not yalniz_yerel:
+        print(f'  Telefondan      : http://{yerel_ip()}:{port}   (telefon aynı Wi-Fi ağında olmalı)')
+        print('  İlk açılışta Windows güvenlik duvarı sorarsa "Özel ağlar" için izin verin.')
+    print()
+    # Ağa açıkken hata ayıklayıcı (debugger) kapalıdır; KLINIK_DEBUG=1 ile açılabilir.
+    app.run(host='127.0.0.1' if yalniz_yerel else '0.0.0.0', port=port, debug=hata_ayiklama)

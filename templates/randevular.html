@@ -96,7 +96,7 @@
             <p class="mt-1 text-sm text-emerald-50/80">Etiketlere tıklayarak hastaya özel bilgileri ekleyin.</p>
         </div>
         <div class="flex flex-wrap gap-1.5" id="htEtiketler">
-            {% for k, e in [('ad', 'Ad'), ('adsoyad', 'Ad soyad'), ('gun', 'Gün'), ('tarih', 'Tarih'), ('saat', 'Saat'), ('islem', 'Hizmet'), ('klinik', 'Klinik adı')] %}
+            {% for k, e in [('ad', 'Ad'), ('adsoyad', 'Ad soyad'), ('gun', 'Gün'), ('tarih', 'Tarih'), ('saat', 'Saat'), ('islem', 'Hizmet'), ('hekim', 'Hekim'), ('klinik', 'Klinik adı')] %}
             <button type="button" data-etiket="{{ '{' ~ k ~ '}' }}" class="h-8 px-3 rounded-full text-[12px] font-semibold text-emerald-100 bg-emerald-400/10 border border-emerald-300/25 hover:bg-emerald-400/20">{{ e }}</button>
             {% endfor %}
         </div>
@@ -125,6 +125,21 @@
                     <option value="">Hasta seçiniz…</option>
                     {% for h in hastalar %}<option value="{{ h.id }}" {% if secili_hasta_id == h.id %}selected{% endif %}>{{ h.ad_soyad }} · {{ h.maskeli_tc }}</option>{% endfor %}
                 </select></label>
+            {% if hekimler_json | length > 1 %}
+            <fieldset class="flex flex-col gap-2">
+                <legend class="mb-2 text-[13px] font-medium text-teal-200">Hekim</legend>
+                <div id="hekimSecim" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2" role="radiogroup" aria-label="Hekim seçimi">
+                    {% for h in hekimler_json %}
+                    <label class="flex items-center gap-2.5 min-h-[48px] px-3 py-2 rounded-xl bg-white/[0.05] border border-white/15 cursor-pointer has-[:checked]:bg-white/[0.14] has-[:checked]:border-white/60 transition-colors">
+                        <input type="radio" name="doktor_id" value="{{ h.id }}" class="sr-only" {{ 'checked' if h.id == varsayilan_hekim }}>
+                        <span class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-[11px] font-bold text-[#0B0720]" style="background: {{ h.renk }}">{{ h.bas_harfler }}</span>
+                        <span class="min-w-0 leading-tight"><span class="block text-[13px] font-semibold text-white truncate">{{ h.ad }}</span>
+                            {% if h.brans %}<span class="block text-[11px] text-teal-50/60 truncate">{{ h.brans }}</span>{% endif %}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+            {% endif %}
             <div class="grid grid-cols-2 gap-3">
                 <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-200">Tarih
                     <input id="tarih" type="date" class="alan" value="{{ secili.isoformat() }}" min="{{ bugun.isoformat() }}" required></label>
@@ -133,6 +148,7 @@
             </div>
             <fieldset class="flex flex-col gap-2">
                 <legend class="mb-2 text-[13px] font-medium text-teal-200">Saat <span class="font-normal text-teal-50/70">· dolu saatler seçilemez</span></legend>
+                <div id="saatNeden" class="hidden px-4 py-3 rounded-2xl text-[13px] font-medium text-amber-100 bg-amber-400/10 border border-amber-300/25"></div>
                 <div id="saatIzgara" class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-2" role="group" aria-label="Saat seçimi"></div>
             </fieldset>
             <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-200">Notlar
@@ -163,11 +179,20 @@
             <button type="button" data-gun="{{ g.iso }}" class="gun-dugme flex flex-col items-center gap-0.5 py-3 px-1 rounded-[18px] border transition-all duration-300">
                 <span class="text-xs font-medium opacity-85">{{ g.kisa }}</span>
                 <span class="font-sora text-2xl font-semibold">{{ g.gun }}</span>
-                <span class="text-[11px] opacity-85">{{ (g.sayi ~ ' randevu') if g.sayi else 'Boş' }}</span>
+                <span class="hidden sm:inline text-[11px] opacity-85">{{ (g.sayi ~ ' randevu') if g.sayi else 'Boş' }}</span>
+                <span class="sm:hidden text-[11px] font-semibold opacity-85">{{ g.sayi or '–' }}</span>
             </button>
             {% endfor %}
         </div>
 
+        {% if hekimler_json | length > 1 %}
+        <div role="group" aria-label="Hekim filtresi" class="flex flex-wrap gap-1.5">
+            <button type="button" data-hekim-filtre="" class="hekim-cip h-9 px-3 rounded-full text-xs font-semibold border">Tüm hekimler</button>
+            {% for h in hekimler_json %}
+            <button type="button" data-hekim-filtre="{{ h.id }}" class="hekim-cip inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-semibold border"><span class="w-2 h-2 rounded-full" style="background: {{ h.renk }}"></span>{{ h.ad }}</button>
+            {% endfor %}
+        </div>
+        {% endif %}
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div id="gunBaslik" class="text-[15px] font-semibold text-white"></div>
             <div role="group" aria-label="Durum filtresi" class="flex flex-wrap gap-1.5">
@@ -201,8 +226,14 @@
                 <div id="talepHastalar" class="flex flex-col gap-2"></div>
             </fieldset>
             <div class="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-4">
+                <div class="flex flex-col gap-3">
+                {% if hekimler_json | length > 1 %}
+                <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-200">Hekim
+                    <select id="t_hekim" class="alan">{% for h in hekimler_json %}<option value="{{ h.id }}">{{ h.ad }}</option>{% endfor %}</select></label>
+                {% endif %}
                 <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-200">Tarih
                     <input id="t_tarih" type="date" class="alan" min="{{ bugun.isoformat() }}"></label>
+                </div>
                 <fieldset class="flex flex-col gap-2 min-w-0">
                     <legend class="mb-2 text-[13px] font-medium text-teal-200">Saat <span class="font-normal text-teal-50/60">· hastanın istediği saat işaretli</span></legend>
                     <div id="t_saatler" class="grid grid-cols-4 sm:grid-cols-6 gap-1.5" role="group" aria-label="Saat seçimi"></div>
@@ -292,7 +323,7 @@
 </div>
 {% endif %}
 
-<script id="talepVeri" type="application/json">{{ {'talepler': talepler_json, 'saatler': saat_dilimleri, 'bugun': bugun.isoformat()} | tojson }}</script>
+<script id="talepVeri" type="application/json">{{ {'talepler': talepler_json, 'saatler': saat_dilimleri, 'bugun': bugun.isoformat(), 'hekimler': hekimler_json} | tojson }}</script>
 
 <!-- Randevu erteleme -->
 <div id="erteleModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
@@ -306,10 +337,15 @@
                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
+        {% if hekimler_json | length > 1 %}
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-200">Hekim
+            <select id="e_hekim" class="alan">{% for h in hekimler_json %}<option value="{{ h.id }}">{{ h.ad }}{% if h.brans %} · {{ h.brans }}{% endif %}</option>{% endfor %}</select></label>
+        {% endif %}
         <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-200">Yeni tarih
             <input id="e_tarih" type="date" class="alan" min="{{ bugun.isoformat() }}" required></label>
         <fieldset class="flex flex-col gap-2">
             <legend class="mb-2 text-[13px] font-medium text-teal-200">Yeni saat</legend>
+            <div id="eNeden" class="hidden px-4 py-3 rounded-2xl text-[13px] font-medium text-amber-100 bg-amber-400/10 border border-amber-300/25"></div>
             <div id="e_saatler" class="grid grid-cols-4 sm:grid-cols-6 gap-2" role="group" aria-label="Yeni saat seçimi"></div>
         </fieldset>
         <label class="flex items-center gap-3 text-[13px] font-medium text-teal-50 cursor-pointer">
@@ -335,7 +371,16 @@
     var seciliGun = GUN_ISO.indexOf('{{ secili.isoformat() }}') !== -1 ? '{{ secili.isoformat() }}' : GUN_ISO[0];
     var seciliDurum = 'Tümü';
     var seciliSaat = null;
-    var doluSaatler = [];
+    var doluSaatler = [], kapaliSaatler = [], kapaliNeden = null;
+    var HEKIMLER = {{ hekimler_json | tojson }};
+    var COK_HEKIM = HEKIMLER.length > 1;
+    var seciliHekimFiltre = '';
+    try { seciliHekimFiltre = localStorage.getItem('klinik_hekim_filtre') || ''; } catch (x) {}
+    if (seciliHekimFiltre && !HEKIMLER.some(function (h) { return String(h.id) === seciliHekimFiltre; })) seciliHekimFiltre = '';
+    function formHekim() {
+        var r = document.querySelector('input[name=doktor_id]:checked');
+        return r ? r.value : (HEKIMLER[0] ? String(HEKIMLER[0].id) : '');
+    }
 
     var ROZET = {
         'Tamamlandı': 'bg-white/10 text-teal-50',
@@ -368,6 +413,12 @@
                 (aktif ? 'text-[#042F2E] border-teal-300 -translate-y-1 shadow-[0_14px_30px_-10px_rgba(45,212,191,0.8)] bg-gradient-to-b from-teal-100 to-teal-300'
                        : 'text-teal-50 bg-white/5 border-white/10 hover:bg-white/10');
         });
+        document.querySelectorAll('.hekim-cip').forEach(function (b) {
+            var aktif = b.dataset.hekimFiltre === seciliHekimFiltre;
+            b.setAttribute('aria-pressed', aktif ? 'true' : 'false');
+            b.className = 'hekim-cip inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-semibold border transition-all ' +
+                (aktif ? 'text-[#042F2E] bg-white border-white' : 'text-teal-50 bg-white/5 border-white/15 hover:bg-white/10');
+        });
         document.querySelectorAll('.durum-cip').forEach(function (b) {
             var aktif = b.dataset.durum === seciliDurum;
             b.setAttribute('aria-pressed', aktif ? 'true' : 'false');
@@ -379,7 +430,8 @@
     function listeyiCiz() {
         var i = GUN_ISO.indexOf(seciliGun);
         var liste = RANDEVULAR.filter(function (r) {
-            return r.tarih === seciliGun && (seciliDurum === 'Tümü' || r.durum === seciliDurum);
+            return r.tarih === seciliGun && (seciliDurum === 'Tümü' || r.durum === seciliDurum) &&
+                   (!seciliHekimFiltre || String(r.doktor_id) === seciliHekimFiltre);
         });
         document.getElementById('gunBaslik').textContent =
             seciliGun.slice(8, 10).replace(/^0/, '') + ' ' + GUN_AYLAR[i] + ' ' + GUN_ADLARI[i] + ' · ' + liste.length + ' randevu';
@@ -401,7 +453,9 @@
             saat.appendChild(el('div', 'font-sora text-[19px] font-semibold text-white', r.saat));
             saat.appendChild(el('div', 'text-[11px] text-teal-200', '30 dk'));
             satir.appendChild(saat);
-            satir.appendChild(el('div', 'w-px self-stretch bg-white/10'));
+            var ayrac = el('div', 'w-px self-stretch bg-white/10');
+            if (COK_HEKIM) { ayrac.className = 'w-1 self-stretch rounded-full'; ayrac.style.background = r.doktor_renk; }
+            satir.appendChild(ayrac);
 
             var bilgi = el('div', 'flex-[1_1_200px] min-w-0');
             var ad = el('a', 'text-[15px] font-semibold text-white hover:text-teal-200 transition-colors', r.hasta_ad);
@@ -417,7 +471,19 @@
                 var hb = el('span', 'ml-1.5 inline-flex items-center h-5 px-2 rounded-full text-[10px] font-bold align-middle bg-emerald-400/15 text-emerald-200', '✓ Hatırlatıldı');
                 bilgi.appendChild(hb);
             }
-            bilgi.appendChild(el('div', 'mt-0.5 text-[13px] text-teal-50/80 truncate', r.islem_turu + (r.notlar ? ' · ' + r.notlar : '')));
+            if (r.geldi && (r.durum === 'Bekliyor' || r.durum === 'Onaylandı')) {
+                bilgi.appendChild(el('span', 'ml-1.5 inline-flex items-center h-5 px-2 rounded-full text-[10px] font-bold align-middle bg-sky-400/20 text-sky-100',
+                    r.cagrildi ? 'Çağrıldı ' + r.cagrildi : 'Salonda · sıra ' + r.sira_no));
+            }
+            var altSatir = el('div', 'mt-0.5 flex items-center gap-1.5 text-[13px] text-teal-50/80 min-w-0');
+            if (COK_HEKIM && r.doktor_ad) {
+                var hk = el('span', 'inline-flex items-center gap-1 shrink-0 font-medium text-white/85');
+                var nk = el('span', 'w-2 h-2 rounded-full'); nk.style.background = r.doktor_renk;
+                hk.appendChild(nk); hk.appendChild(document.createTextNode(r.doktor_ad));
+                altSatir.appendChild(hk); altSatir.appendChild(el('span', 'text-white/30', '·'));
+            }
+            altSatir.appendChild(el('span', 'truncate', r.islem_turu + (r.notlar ? ' · ' + r.notlar : '')));
+            bilgi.appendChild(altSatir);
             satir.appendChild(bilgi);
 
             satir.appendChild(el('span', 'inline-flex items-center h-7 px-3 rounded-full text-xs font-semibold whitespace-nowrap ' + (ROZET[r.durum] || 'bg-white/10 text-white'), r.durum));
@@ -482,6 +548,16 @@
     document.querySelectorAll('.durum-cip').forEach(function (b) {
         b.addEventListener('click', function () { seciliDurum = b.dataset.durum; gunleriBoya(); listeyiCiz(); });
     });
+    document.querySelectorAll('.hekim-cip').forEach(function (b) {
+        b.addEventListener('click', function () {
+            seciliHekimFiltre = b.dataset.hekimFiltre;
+            try { localStorage.setItem('klinik_hekim_filtre', seciliHekimFiltre); } catch (x) {}
+            gunleriBoya(); listeyiCiz();
+        });
+    });
+    document.querySelectorAll('input[name=doktor_id]').forEach(function (r) {
+        r.addEventListener('change', function () { seciliSaat = null; doluSaatleriGetir(); });
+    });
 
     // ---------- Form ----------
     var form = document.getElementById('randevuForm');
@@ -493,7 +569,11 @@
         kap.innerHTML = '';
         var bugunMu = tarihAlan.value === BUGUN;
         var simdi = new Date().toTimeString().slice(0, 5);
+        var neden = document.getElementById('saatNeden');
+        neden.textContent = kapaliNeden || '';
+        neden.classList.toggle('hidden', !kapaliNeden);
         SAATLER.forEach(function (s) {
+            if (kapaliSaatler.indexOf(s) !== -1) { if (seciliSaat === s) seciliSaat = null; return; }
             var dolu = doluSaatler.indexOf(s) !== -1 || (bugunMu && s <= simdi);
             if (dolu && seciliSaat === s) seciliSaat = null;
             var b = el('button', '', s);
@@ -514,10 +594,12 @@
     async function doluSaatleriGetir() {
         if (!tarihAlan || !tarihAlan.value) return;
         try {
-            var y = await fetch('/api/dolu_saatler?tarih=' + encodeURIComponent(tarihAlan.value));
+            var y = await fetch('/api/dolu_saatler?tarih=' + encodeURIComponent(tarihAlan.value) + '&doktor_id=' + encodeURIComponent(formHekim()));
             var v = await y.json();
             doluSaatler = v.dolu || [];
-        } catch (e) { doluSaatler = []; }
+            kapaliSaatler = v.kapali || [];
+            kapaliNeden = v.neden || null;
+        } catch (e) { doluSaatler = []; kapaliSaatler = []; kapaliNeden = null; }
         saatleriCiz();
     }
 
@@ -533,6 +615,7 @@
             try {
                 var sonuc = await Klinik.jsonGonder('/api/randevu_ekle', {
                     hasta_id: Number(hastaId),
+                    doktor_id: Number(formHekim()) || null,
                     tarih: tarihAlan.value,
                     saat: seciliSaat,
                     islem_turu: document.getElementById('islem_turu').value,
@@ -550,7 +633,9 @@
     }
 
     // ---------- Erteleme ----------
-    var ertelenen = null, eSaat = null, eDolu = [];
+    var ertelenen = null, eSaat = null, eDolu = [], eKapali = [], eNedenMetin = null;
+    var eHekim = document.getElementById('e_hekim');
+    function eHekimId() { return eHekim ? eHekim.value : (ertelenen && ertelenen.doktor_id) || ''; }
     var eTarih = document.getElementById('e_tarih');
 
     function eSaatleriCiz() {
@@ -558,7 +643,10 @@
         kap.innerHTML = '';
         var bugunMu = eTarih.value === BUGUN;
         var simdi = new Date().toTimeString().slice(0, 5);
+        var nd = document.getElementById('eNeden');
+        nd.textContent = eNedenMetin || ''; nd.classList.toggle('hidden', !eNedenMetin);
         SAATLER.forEach(function (s) {
+            if (eKapali.indexOf(s) !== -1) { if (eSaat === s) eSaat = null; return; }
             var dolu = eDolu.indexOf(s) !== -1 || (bugunMu && s <= simdi);
             if (dolu && eSaat === s) eSaat = null;
             var b = el('button', '', s);
@@ -578,9 +666,10 @@
     async function eDoluGetir() {
         if (!eTarih.value || !ertelenen) return;
         try {
-            var y = await fetch('/api/dolu_saatler?tarih=' + encodeURIComponent(eTarih.value) + '&haric=' + ertelenen.id);
-            eDolu = (await y.json()).dolu || [];
-        } catch (x) { eDolu = []; }
+            var y = await fetch('/api/dolu_saatler?tarih=' + encodeURIComponent(eTarih.value) + '&haric=' + ertelenen.id + '&doktor_id=' + encodeURIComponent(eHekimId()));
+            var v = await y.json();
+            eDolu = v.dolu || []; eKapali = v.kapali || []; eNedenMetin = v.neden || null;
+        } catch (x) { eDolu = []; eKapali = []; eNedenMetin = null; }
         eSaatleriCiz();
     }
 
@@ -588,12 +677,14 @@
         ertelenen = r;
         eSaat = null;
         eTarih.value = r.tarih >= BUGUN ? r.tarih : BUGUN;
+        if (eHekim && r.doktor_id) eHekim.value = String(r.doktor_id);
         document.getElementById('erteleAciklama').textContent =
             r.hasta_ad + ' · şu an ' + r.tarih.split('-').reverse().join('.') + ' ' + r.saat + ' · ' + r.islem_turu;
         Klinik.modalAcId('erteleModal', 'e_tarih');
         eDoluGetir();
     }
     eTarih.addEventListener('change', eDoluGetir);
+    if (eHekim) eHekim.addEventListener('change', function () { eSaat = null; eDoluGetir(); });
 
     document.getElementById('erteleForm').addEventListener('submit', async function (e) {
         e.preventDefault();
@@ -602,7 +693,8 @@
         d.disabled = true;
         try {
             var s = await Klinik.jsonGonder('/api/randevu/' + ertelenen.id, {
-                tarih: eTarih.value, saat: eSaat, not_ekle: document.getElementById('e_not').checked
+                tarih: eTarih.value, saat: eSaat, not_ekle: document.getElementById('e_not').checked,
+                doktor_id: Number(eHekimId()) || null
             }, 'PUT');
             Klinik.bildir(s.mesaj);
             Klinik.modalKapatId('erteleModal');
@@ -616,6 +708,10 @@
 
     gunleriBoya();
     listeyiCiz();
+    if (location.hash === '#yeni') {
+        var hs = document.getElementById('hasta_id');
+        if (hs) { hs.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(function () { hs.focus(); }, 400); }
+    }
 })();
 </script>
 <script src="{{ url_for('static', filename='js/online_talepler.js') }}"></script>

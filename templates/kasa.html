@@ -235,6 +235,7 @@
                        hastalar: hasta ? null : HASTALAR, onKaydet: yenile });
     }
     document.querySelectorAll('[data-kasa-ac]').forEach(function (b) { b.addEventListener('click', function () { kasaAc(null); }); });
+    if (location.hash === '#tahsilat') { history.replaceState(null, '', location.pathname + location.search); setTimeout(function () { kasaAc(null); }, 300); }
 
     $('gunSec').addEventListener('change', function () { if (this.value) location.href = '/kasa?tarih=' + this.value; });
 

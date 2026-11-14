@@ -129,6 +129,10 @@
                         </div>
                         <button type="button" data-geri class="shrink-0 h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">← Geri</button>
                     </div>
+                    <div id="hekimBolum" class="hidden flex-col gap-2">
+                        <div class="text-[13px] font-semibold text-violet-200">Hekim</div>
+                        <div id="hekimler" class="flex flex-wrap gap-2" role="radiogroup" aria-label="Hekim seçimi"></div>
+                    </div>
                     <div class="relative">
                         <div id="gunler" class="flex gap-2 overflow-x-auto ince-kaydirma pt-2 pb-2 snap-x" role="group" aria-label="Gün seçimi"></div>
                     </div>
@@ -250,7 +254,7 @@
         } catch (h) { bildir(h.message, 'hata'); iptal.disabled = false; }
     });
     {% elif ayarlar.acik %}
-    var s = { hizmet: null, gun: null, saat: null, adim: 1, gunler: [] };
+    var s = { hizmet: null, gun: null, saat: null, adim: 1, gunler: [], hekim: null, hekimler: [] };
     var IKONLAR = {
         'Genel Muayene': '<path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/>',
         'Kontrol Muayenesi': '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
@@ -285,7 +289,7 @@
     document.querySelectorAll('[data-geri]').forEach(function (b) { b.addEventListener('click', function () { adimGit(s.adim - 1); }); });
 
     function ozetCiz() {
-        $('ozHizmet').textContent = s.hizmet || '—';
+        $('ozHizmet').textContent = (s.hizmet || '—') + (s.hekim ? ' · ' + s.hekim.ad : '');
         $('ozGun').textContent = s.gun ? s.gun.gun + ' ' + s.gun.ay + ' ' + s.gun.uzun : '—';
         $('ozSaat').textContent = s.saat || '—';
     }
@@ -341,7 +345,7 @@
         if (!s.gun) { kap.appendChild(el('p', 'text-sm text-violet-300', 'Önce bir gün seçin.')); return; }
         kap.appendChild(el('p', 'text-sm text-violet-300', 'Saatler yükleniyor…'));
         try {
-            var y = await fetch('/api/online/saatler?tarih=' + s.gun.iso);
+            var y = await fetch('/api/online/saatler?tarih=' + s.gun.iso + (s.hekim ? '&doktor_id=' + s.hekim.id : ''));
             var saatler = (await y.json()).saatler || [];
             kap.innerHTML = '';
             var gruplar = [['Sabah', function (x) { return x < '12:00'; }], ['Öğle', function (x) { return x >= '12:00' && x < '14:00'; }], ['Öğleden sonra', function (x) { return x >= '14:00'; }]];
@@ -398,10 +402,12 @@
         try {
             var sonuc = await gonderJson('/api/online/talep', {
                 ad_soyad: ad, telefon: $('o_tel').value, tc_kimlik: $('o_tc').value, notlar: $('o_not').value,
-                islem_turu: s.hizmet, tarih: s.gun.iso, saat: s.saat, kvkk_onay: true, web_sitesi: $('o_web').value
+                islem_turu: s.hizmet, tarih: s.gun.iso, saat: s.saat, kvkk_onay: true, web_sitesi: $('o_web').value,
+                doktor_id: s.hekim ? s.hekim.id : null
             });
             $('kodKopyala').textContent = sonuc.kod;
-            $('tamamOzet').textContent = s.gun.gun + ' ' + s.gun.ay + ' ' + s.gun.uzun + ' saat ' + s.saat + ' · ' + s.hizmet + ' talebiniz kliniğe iletildi.';
+            $('tamamOzet').textContent = s.gun.gun + ' ' + s.gun.ay + ' ' + s.gun.uzun + ' saat ' + s.saat + ' · ' + s.hizmet +
+                (sonuc.ozet && sonuc.ozet.doktor_ad && s.hekimler.length ? ' (' + sonuc.ozet.doktor_ad + ')' : '') + ' talebiniz kliniğe iletildi.';
             $('icsLink').href = sonuc.takip + '/takvim.ics';
             $('takipLink').href = sonuc.takip;
             adimGit(4);
@@ -417,19 +423,44 @@
         try { await navigator.clipboard.writeText(this.textContent); bildir('Kod kopyalandı.'); } catch (e) { /* desteklenmiyor */ }
     });
 
-    (async function yukle() {
+    function hekimleriCiz() {
+        var kap = $('hekimler');
+        kap.innerHTML = '';
+        $('hekimBolum').classList.toggle('hidden', !s.hekimler.length);
+        $('hekimBolum').classList.toggle('flex', !!s.hekimler.length);
+        [{ id: null, ad: 'Fark etmez', brans: 'İlk uygun hekim', renk: '#FFFFFF', bas_harfler: '★' }].concat(s.hekimler).forEach(function (h) {
+            var secili = (s.hekim ? s.hekim.id : null) === h.id;
+            var b = el('button', 'flex items-center gap-2.5 h-14 pl-2 pr-4 rounded-2xl border text-left transition-all ' +
+                (secili ? 'bg-white text-[#1E0B4B] border-white' : 'bg-white/[0.05] text-white border-white/15 hover:bg-white/10'));
+            b.type = 'button';
+            b.setAttribute('role', 'radio');
+            b.setAttribute('aria-checked', secili ? 'true' : 'false');
+            var r = el('span', 'w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-[12px] font-bold text-[#0B0720]', h.bas_harfler);
+            r.style.background = h.renk;
+            b.appendChild(r);
+            var m = el('span', 'leading-tight');
+            m.appendChild(el('span', 'block text-[13px] font-semibold', h.ad));
+            if (h.brans) m.appendChild(el('span', 'block text-[11px] ' + (secili ? 'text-violet-700' : 'text-violet-300'), h.brans));
+            b.appendChild(m);
+            b.addEventListener('click', function () { s.hekim = h.id ? h : null; s.saat = null; hekimleriCiz(); ozetCiz(); takvimYukle(); });
+            kap.appendChild(b);
+        });
+    }
+
+    async function takvimYukle(ilkYukleme) {
         try {
-            var y = await fetch('/api/online/takvim');
+            var y = await fetch('/api/online/takvim' + (s.hekim ? '?doktor_id=' + s.hekim.id : ''));
             var v = await y.json();
             s.gunler = v.gunler || [];
-            hizmetleriCiz(v.hizmetler || []);
-            var ilk = s.gunler.find(function (g) { return !g.kapali && g.bos > 0; });
-            if (ilk) s.gun = ilk;
+            if (ilkYukleme) { hizmetleriCiz(v.hizmetler || []); s.hekimler = v.hekimler || []; hekimleriCiz(); }
+            var hala = s.gun && s.gunler.find(function (g) { return g.iso === s.gun.iso && !g.kapali && g.bos > 0; });
+            s.gun = hala || s.gunler.find(function (g) { return !g.kapali && g.bos > 0; }) || null;
             gunleriCiz();
             saatleriGetir();
             ozetCiz();
         } catch (e) { bildir('Takvim yüklenemedi. Sayfayı yenileyin.', 'hata'); }
-    })();
+    }
+    takvimYukle(true);
     adimGit(1, false);
     {% endif %}
 })();

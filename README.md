@@ -123,6 +123,36 @@ Bunun yanında güzel görünen ama işe yaramayan bir demo değil — **alerji 
 </details>
 
 <details open>
+<summary><b>🧪 Tahlil ve görüntüleme dosyaları</b></summary>
+
+- Hasta dosyasına **PDF, JPG, PNG** yükleme (sürükle-bırak veya telefonda kamerayla); belge içeriği uzantıyla doğrulanır, dosyalar yalnızca hekime gösterilir
+- 19 yaygın test için **laboratuvar değeri girişi** (hemogram, tiroid, lipid, diyabet, böbrek/karaciğer, vitamin) + özel test; cinsiyete göre hazır referans aralığı
+- Referans dışı değerler **↑ yüksek / ↓ düşük** işaretlenir; her test için referans bandı çizili zaman grafiği ve önceki ölçüme göre değişim
+</details>
+
+<details open>
+<summary><b>👩‍⚕️ Çoklu hekim</b></summary>
+
+- Her hekime branş, oda, takvim rengi ve **haftalık mesai**; tarih aralığıyla **izin** girişi
+- Randevu ekranı ve online randevu yalnızca seçilen hekimin **mesai içindeki boş saatlerini** gösterir; aynı saatte farklı hekimlere randevu verilebilir
+- Online randevuda hasta hekim seçer ya da “fark etmez” der; takvimde hekim filtresi, raporlarda **hekim bazında ciro ve gelmeme oranı**
+</details>
+
+<details open>
+<summary><b>📺 Bekleme salonu ekranı</b></summary>
+
+- Panelde gelen hastayı “Geldi” ile salona alma, sıra numarası, **tek tıkla çağırma** ve tahmini bekleme süresi
+- TV/tablet için gizli bağlantılı **tam ekran salon sayfası**: büyük sıra numarası, kısaltılmış ad (veya yalnızca numara), hekim ve oda; zil sesi ve **Türkçe sesli anons**
+</details>
+
+<details open>
+<summary><b>⌨️ Ctrl+K komut paleti ve telefondan erişim</b></summary>
+
+- Her sayfada `Ctrl+K`: hasta (ad, TC, telefon — Türkçe karakterden bağımsız), randevu ve malzeme araması; “yeni hasta”, “tahsilat al”, “gün sonu raporu” gibi hızlı işlemler
+- Uygulama aynı Wi-Fi'deki **telefon ve tabletlerden** açılır; menüdeki “Telefondan aç” QR kod gösterir
+</details>
+
+<details open>
 <summary><b>🔔 Hatırlatma ve “gelmedi” takibi</b></summary>
 
 - Yarının (ya da seçilen günün) randevuları tek listede; her satırda **tek tıkla WhatsApp** hatırlatma, “Hatırlatıldı” işareti ve ilerleme halkası
@@ -238,20 +268,25 @@ venv/bin/flask --app app ornek-veri
 venv/bin/python app.py
 ```
 
-Tarayıcıda **http://127.0.0.1:5000** adresini açın.
+Tarayıcıda **http://127.0.0.1:5000** adresini açın. Windows'ta `baslat.bat` dosyasına çift tıklamak da yeterli.
+
+📱 **Telefondan denemek için:** telefon bilgisayarla aynı Wi-Fi ağında olsun; uygulama açılırken konsolda yazan `http://192.168.x.x:5000` adresini (veya menüdeki **Telefondan aç** QR kodunu) kullanın. Windows güvenlik duvarı sorarsa “Özel ağlar” için izin verin.
 
 | Demo hesabı | E-posta | Şifre |
 |---|---|---|
 | Doktor | `doktor@klinik.local` | `klinik123` |
 | Sekreter | `sekreter@klinik.local` | `klinik123` |
+| İkinci hekim | `selin@klinik.local` | `klinik123` |
 
 > Demo verisi yüklemezseniz ilk açılışta **kurulum ekranı** gelir ve ilk doktor hesabını siz oluşturursunuz.
 
 **İpuçları**
 
 - Klinik adını değiştirmek için: `KLINIK_ADI="Şifa Kliniği"` ortam değişkeni
-- Online randevu sayfasını aynı ağdaki telefonlardan açmak için `app.py` sonunda `app.run(host="0.0.0.0")`
-- Canlı ortamda `debug=True` kapatılmalı, HTTPS arkasında çalıştırılmalı ve `KLINIK_GIZLI_ANAHTAR` tanımlanmalıdır
+- Yalnızca bu bilgisayardan erişim için: `KLINIK_YALNIZ_YEREL=1` · farklı port: `PORT=8080` · geliştirme hata ayıklayıcısı: `KLINIK_DEBUG=1`
+- Sesli not mikrofon izni ister; tarayıcılar bunu yalnızca `localhost` veya **HTTPS** üzerinde verir (telefondan Wi-Fi adresiyle açıldığında devre dışıdır)
+- Yedekleme veritabanını kapsar; yüklenen hasta dosyaları `instance/hasta_dosyalari/` klasöründedir, ayrıca yedekleyin
+- Canlı ortamda HTTPS arkasında çalıştırılmalı ve `KLINIK_GIZLI_ANAHTAR` tanımlanmalıdır
 
 ---
 
@@ -260,7 +295,7 @@ Tarayıcıda **http://127.0.0.1:5000** adresini açın.
 ```
 butik-klinik-saas/
 ├── app.py                 # Flask uygulaması: sayfalar, REST API, güvenlik, yedekleme, kasa, online randevu, stok, raporlar
-├── models.py              # SQLAlchemy modelleri (16 tablo)
+├── models.py              # SQLAlchemy modelleri (19 tablo)
 ├── ilaclar.py             # İlaç listesi ve alerji / etkileşim / hastalık kuralları
 ├── requirements.txt
 ├── static/
@@ -272,9 +307,12 @@ butik-klinik-saas/
 │   │   ├── profil.js      # Hasta dosyası: vital grafik, muayene, reçete oluşturucu
 │   │   ├── kasa.js / hesap.js / online_talepler.js
 │   │   ├── stok.js / raporlar.js / hatirlatma.js
+│   │   ├── tahlil.js      # Belge yükleme, lab değerleri ve grafikleri
+│   │   ├── sira.js        # Bekleme salonu sıra yönetimi
+│   │   ├── komut.js       # Ctrl+K komut paleti, telefondan aç
 │   │   ├── dikte.js       # Türkçe sesli dikte
 │   └── models/insan.bin   # Sıkıştırılmış 3D insan modeli (MakeHuman, CC0)
-├── templates/             # Jinja2 sayfaları + yazdırılabilir belgeler (reçete, makbuz, ekstre…)
+├── templates/             # Jinja2 sayfaları + yazdırılabilir belgeler + salon.html (TV ekranı)
 └── docs/ekran/            # README ekran görüntüleri
 ```
 
@@ -284,12 +322,12 @@ butik-klinik-saas/
 
 - [x] Randevu hatırlatmaları ve “gelmedi” takibi
 - [x] Raporlar paneli (gelir, tanı dağılımı, yoğunluk ısı haritası) + PDF
-- [ ] Tahlil / görüntü dosyası yükleme ve laboratuvar değer grafikleri
-- [ ] `Ctrl+K` komut paleti
-- [ ] Bekleme salonu ekranı
+- [x] Tahlil / görüntü dosyası yükleme ve laboratuvar değer grafikleri
+- [x] `Ctrl+K` komut paleti
+- [x] Bekleme salonu ekranı
 - [x] Sesli muayene notu (Web Speech API)
 - [x] Stok ve malzeme takibi
-- [ ] Çoklu hekim çalışma takvimi
+- [x] Çoklu hekim çalışma takvimi
 - [ ] PWA — telefona uygulama olarak kurulum
 
 Fikirleriniz için [Issues](../../issues) sekmesini kullanabilirsiniz.

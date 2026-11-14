@@ -145,6 +145,9 @@
     if (!SR) {
       dugme.disabled = true;
       dugme.title = 'Bu tarayıcı sesli yazmayı desteklemiyor (Chrome veya Edge kullanın).';
+    } else if (window.isSecureContext === false) {
+      dugme.disabled = true;
+      dugme.title = 'Sesli yazma mikrofon izni ister; tarayıcılar bunu yalnızca güvenli (https) bağlantıda verir. Telefondan Wi-Fi adresiyle açıldığında kullanılamaz.';
     } else {
       dugme.title = 'Sesle yaz (Alt+D) · “virgül”, “nokta”, “yeni satır” diyebilirsiniz. Ses, tarayıcının konuşma tanıma hizmetinde işlenir.';
     }

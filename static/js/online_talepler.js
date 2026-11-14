@@ -71,6 +71,7 @@
       tz.appendChild(document.createTextNode(t.tarih_metin + ' · ' + t.saat));
       zaman.appendChild(tz);
       zaman.appendChild(el('span', 'inline-flex items-center h-9 px-3 rounded-xl text-[13px] text-teal-100 bg-teal-400/10', t.islem_turu));
+      if (t.doktor_ad && (VERI.hekimler || []).length > 1) zaman.appendChild(el('span', 'inline-flex items-center h-9 px-3 rounded-xl text-[13px] text-violet-100 bg-violet-400/10', t.doktor_ad));
       kart.appendChild(zaman);
 
       if (t.notlar) kart.appendChild(el('p', 'text-[13px] leading-relaxed text-teal-50/85 line-clamp-2', '“' + t.notlar + '”'));
@@ -101,7 +102,7 @@
   }
 
   // ---------- Talep penceresi ----------
-  var aktif = null, secHasta = '', secSaat = null, doluSaat = [], mod = 'onay';
+  var aktif = null, secHasta = '', secSaat = null, doluSaat = [], kapaliSaat = [], kapaliNeden = null, mod = 'onay';
   var HAZIR_NEDENLER = ['Hekimimiz o gün izinli', 'Bu saat dolu, lütfen başka bir saat seçin', 'Bu hizmet için önce telefonla görüşmemiz gerekiyor'];
 
   function hastaSecenekleri() {
@@ -131,6 +132,7 @@
     var bugunMu = $('t_tarih').value === BUGUN;
     var simdi = new Date().toTimeString().slice(0, 5);
     SAATLER.forEach(function (s) {
+      if (kapaliSaat.indexOf(s) !== -1) { if (secSaat === s) secSaat = null; return; }
       var dolu = doluSaat.indexOf(s) !== -1 || (bugunMu && s <= simdi);
       if (dolu && secSaat === s) secSaat = null;
       var istenen = s === aktif.saat && $('t_tarih').value === aktif.tarih;
@@ -146,15 +148,18 @@
       b.addEventListener('click', function () { secSaat = s; saatleriCiz(); });
       kap.appendChild(b);
     });
+    if (kapaliNeden && !kap.children.length) kap.appendChild(el('div', 'col-span-full px-3 py-2.5 rounded-xl text-[13px] text-amber-100 bg-amber-400/10 border border-amber-300/25', kapaliNeden));
     $('talepOnayla').textContent = secSaat ? 'Onayla · ' + $('t_tarih').value.split('-').reverse().join('.') + ' ' + secSaat : 'Saat seçin';
     $('talepOnayla').disabled = !secSaat;
   }
 
   async function doluGetir() {
     try {
-      var y = await fetch('/api/dolu_saatler?tarih=' + encodeURIComponent($('t_tarih').value) + '&haric_talep=' + aktif.id);
-      doluSaat = (await y.json()).dolu || [];
-    } catch (e) { doluSaat = []; }
+      var hk = $('t_hekim') ? $('t_hekim').value : (aktif.doktor_id || '');
+      var y = await fetch('/api/dolu_saatler?tarih=' + encodeURIComponent($('t_tarih').value) + '&haric_talep=' + aktif.id + '&doktor_id=' + encodeURIComponent(hk));
+      var v = await y.json();
+      doluSaat = v.dolu || []; kapaliSaat = v.kapali || []; kapaliNeden = v.neden || null;
+    } catch (e) { doluSaat = []; kapaliSaat = []; kapaliNeden = null; }
     saatleriCiz();
   }
 
@@ -174,7 +179,8 @@
     secHasta = null;
     secSaat = t.saat_dolu ? null : t.saat;
     $('talepBaslik').textContent = t.ad_soyad;
-    $('talepAlt').textContent = t.telefon + ' · ' + t.islem_turu + ' · ' + t.tarih_metin + ' ' + t.saat + ' istedi';
+    $('talepAlt').textContent = t.telefon + ' · ' + t.islem_turu + ' · ' + t.tarih_metin + ' ' + t.saat + ' istedi' + (t.doktor_ad && $('t_hekim') ? ' · ' + t.doktor_ad : '');
+    if ($('t_hekim') && t.doktor_id) $('t_hekim').value = String(t.doktor_id);
     $('talepNot').classList.toggle('hidden', !t.notlar);
     $('talepNot').textContent = t.notlar ? 'Hastanın notu: “' + t.notlar + '”' : '';
     $('t_tarih').value = t.tarih >= BUGUN ? t.tarih : BUGUN;
@@ -224,6 +230,7 @@
   }
 
   $('t_tarih').addEventListener('change', function () { secSaat = null; doluGetir(); });
+  if ($('t_hekim')) $('t_hekim').addEventListener('change', function () { secSaat = null; doluGetir(); });
 
   $('talepOnayla').addEventListener('click', async function () {
     if (!aktif || !secSaat) return;
@@ -231,7 +238,8 @@
     b.disabled = true;
     try {
       var s = await Klinik.jsonGonder('/api/online/talep/' + aktif.id + '/onayla', {
-        hasta_id: secHasta || null, tarih: $('t_tarih').value, saat: secSaat
+        hasta_id: secHasta || null, tarih: $('t_tarih').value, saat: secSaat,
+        doktor_id: $('t_hekim') ? Number($('t_hekim').value) : (aktif.doktor_id || null)
       });
       TALEPLER = TALEPLER.filter(function (x) { return x.id !== aktif.id; });
       kartlariCiz();

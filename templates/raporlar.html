@@ -85,6 +85,16 @@
     </section>
 </div>
 
+{% if rapor_json.hekimler | length > 1 %}
+<section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .28s" aria-labelledby="g10">
+    <div>
+        <h2 id="g10" class="font-sora text-xl font-medium text-white">Hekimlere göre</h2>
+        <p class="text-[13px] text-white/60">Randevu, hizmet cirosu ve gelmeme oranı</p>
+    </div>
+    <div id="hekimTablo" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3"></div>
+</section>
+{% endif %}
+
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .3s" aria-labelledby="g3">
         <div>

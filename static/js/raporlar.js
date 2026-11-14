@@ -219,6 +219,37 @@
     });
   })();
 
+  // ---------- Hekim kırılımı ----------
+  (function () {
+    var kap = $('hekimTablo');
+    if (!kap) return;
+    var max = Math.max.apply(null, R.hekimler.map(function (h) { return h.ciro; }).concat([1]));
+    R.hekimler.forEach(function (h) {
+      var k = el('div', 'flex flex-col gap-3 p-4 rounded-2xl bg-white/[0.04] border border-white/[0.08]');
+      var ust = el('div', 'flex items-center gap-2.5');
+      var n = el('span', 'w-3 h-3 rounded-full'); n.style.background = h.renk; n.style.boxShadow = '0 0 10px ' + h.renk;
+      ust.appendChild(n);
+      var ad = el('div', 'flex-1 min-w-0');
+      ad.appendChild(el('div', 'text-[15px] font-semibold text-white truncate', h.ad));
+      if (h.brans) ad.appendChild(el('div', 'text-[12px] text-white/55 truncate', h.brans));
+      ust.appendChild(ad);
+      ust.appendChild(el('div', 'font-sora text-lg font-medium text-amber-200 tabular-nums', tl(h.ciro)));
+      k.appendChild(ust);
+      var bar = el('div', 'h-2 rounded-full bg-white/[0.07] overflow-hidden');
+      var d = el('div', 'yontem-serit h-full rounded-full'); d.style.width = (h.ciro / max * 100) + '%'; d.style.background = h.renk;
+      bar.appendChild(d); k.appendChild(bar);
+      var ist = el('div', 'grid grid-cols-4 gap-2 text-center');
+      [['Randevu', h.randevu], ['Tamamlanan', h.tamamlanan], ['Hasta', h.hasta], ['Gelmeme', '%' + h.gelmeme_orani]].forEach(function (x) {
+        var c = el('div', 'flex flex-col');
+        c.appendChild(el('span', 'font-sora text-[17px] font-medium text-white tabular-nums', x[1]));
+        c.appendChild(el('span', 'text-[10px] text-white/50', x[0]));
+        ist.appendChild(c);
+      });
+      k.appendChild(ist);
+      kap.appendChild(k);
+    });
+  })();
+
   // ---------- En çok gelen hastalar ----------
   (function () {
     var kap = $('sadik');
