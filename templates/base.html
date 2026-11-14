@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block baslik %}Klinik{% endblock %} | Klinik.SaaS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sora: ['Sora', 'system-ui', 'sans-serif'],
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/klinik.css') }}">
+    {% block ek_stil %}{% endblock %}
+</head>
+<body class="min-h-screen text-violet-50 antialiased">
+    <div class="min-h-screen p-3 sm:p-4 flex flex-col gap-5" style="background: {% block govde_zemin %}radial-gradient(900px 500px at 70% 520px, rgba(124,58,237,0.18), transparent 70%), #07051A{% endblock %}">
+
+        <section class="sahne {% block sahne_yukseklik %}h-[600px] md:h-[640px]{% endblock %}"
+                 data-sahne="{% block sahne_adi %}panel{% endblock %}"
+                 {% block sahne_veri %}{% endblock %}
+                 style="background: {% block sahne_zemin %}radial-gradient(800px 500px at 70% 40%, #3B1D8F, #120A2E 70%){% endblock %}">
+            <canvas aria-hidden="true"></canvas>
+            <div class="sahne-ortu" style="background: linear-gradient(90deg, rgba(9,5,28,0.85) 0%, rgba(9,5,28,0.3) 42%, rgba(9,5,28,0) 64%), linear-gradient(0deg, rgba(7,5,26,0.8) 0%, rgba(7,5,26,0) 40%)"></div>
+
+            <header class="absolute top-4 left-4 right-4 sm:top-5 sm:left-6 sm:right-6 z-10 flex flex-wrap items-center justify-between gap-3">
+                <a href="{{ url_for('panel') }}" class="flex items-center gap-2.5">
+                    <span class="w-[34px] h-[34px] rounded-full" style="background: radial-gradient(circle at 32% 28%, #FFFFFF, #A78BFA 40%, #4C1D95 85%); box-shadow: 0 0 24px rgba(167,139,250,0.7)"></span>
+                    <span class="font-sora text-[17px] font-semibold tracking-tight text-white">Klinik<span class="text-violet-300">.SaaS</span></span>
+                </a>
+
+                {% set aktif = aktif_sayfa | default('panel') %}
+                <nav aria-label="Ana menü" class="cam-acik flex gap-0.5 p-[5px] rounded-[14px] overflow-x-auto max-w-full">
+                    {% for anahtar, adres, etiket in [('panel', url_for('panel'), 'Gösterge Paneli'), ('hastalar', url_for('hastalar_listesi'), 'Hastalar'), ('randevular', url_for('randevular_sayfasi'), 'Randevular'), ('kasa', url_for('kasa'), 'Kasa')] %}
+                    <a href="{{ adres }}" {% if aktif == anahtar %}aria-current="page"{% endif %}
+                       class="flex items-center gap-1.5 h-9 px-4 rounded-[10px] text-[13px] whitespace-nowrap transition-colors {{ 'bg-white/15 font-semibold text-white' if aktif == anahtar else 'font-medium text-violet-200 hover:text-white hover:bg-white/5' }}">{{ etiket }}{% if anahtar == 'randevular' and bekleyen_talep %}<span class="nabiz inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-teal-300 text-[#042F2E]" title="{{ bekleyen_talep }} online talep onay bekliyor">{{ bekleyen_talep }}</span>{% endif %}</a>
+                    {% endfor %}
+                    {% if kullanici and kullanici.doktor_mu %}
+                    <a href="{{ url_for('ekip') }}" {% if aktif == 'ekip' %}aria-current="page"{% endif %}
+                       class="flex items-center h-9 px-4 rounded-[10px] text-[13px] whitespace-nowrap transition-colors {{ 'bg-white/15 font-semibold text-white' if aktif == 'ekip' else 'font-medium text-violet-200 hover:text-white hover:bg-white/5' }}">Ekip</a>
+                    <a href="{{ url_for('guvenlik') }}" {% if aktif == 'guvenlik' %}aria-current="page"{% endif %}
+                       class="flex items-center gap-1.5 h-9 px-4 rounded-[10px] text-[13px] whitespace-nowrap transition-colors {{ 'bg-white/15 font-semibold text-white' if aktif == 'guvenlik' else 'font-medium text-violet-200 hover:text-white hover:bg-white/5' }}">
+                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Güvenlik</a>
+                    {% endif %}
+                    {% if aktif == 'profil' %}
+                    <span aria-current="page" class="flex items-center h-9 px-4 rounded-[10px] text-[13px] whitespace-nowrap bg-white/15 font-semibold text-white">Hasta Dosyası</span>
+                    {% endif %}
+                </nav>
+
+                <div class="flex items-center gap-2">
+                    {% block ust_aksiyonlar %}
+                    <a href="{{ url_for('randevular_sayfasi') }}" class="cam-acik hidden xl:flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold text-white hover:bg-white/20 transition-colors">Randevu Oluştur</a>
+                    <button type="button" data-hasta-modal-ac class="flex items-center h-10 px-4 rounded-xl text-[13px] font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Yeni Hasta +</button>
+                    {% endblock %}
+                    {% if kullanici %}
+                    <div class="relative">
+                        <button type="button" id="kullaniciDugme" aria-haspopup="true" aria-expanded="false" aria-controls="kullaniciMenu"
+                                class="cam-acik flex items-center gap-2 h-10 pl-1 pr-3 rounded-xl hover:bg-white/20 transition-colors">
+                            <span class="w-8 h-8 rounded-[9px] flex items-center justify-center text-xs font-bold text-white" style="background: linear-gradient(135deg, #5EEAD4, #8B5CF6)">{{ kullanici.bas_harfler }}</span>
+                            <span class="hidden md:flex flex-col items-start leading-tight">
+                                <span class="text-[12px] font-semibold text-white max-w-[140px] truncate">{{ kullanici.gorunen_ad }}</span>
+                                <span class="text-[11px] text-violet-200">{{ kullanici.rol_adi }}</span>
+                            </span>
+                        </button>
+                        <div id="kullaniciMenu" class="hidden absolute right-0 top-12 z-30 w-56 p-1.5 rounded-2xl border border-white/15" style="background: rgba(20,12,48,0.96); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px)">
+                            <div class="px-3 py-2 text-xs text-violet-300 truncate">{{ kullanici.email }}</div>
+                            <button type="button" data-sifre-modal-ac class="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-white hover:bg-white/10 transition-colors">Şifremi değiştir</button>
+                            <a href="{{ url_for('cikis') }}" class="block px-3 py-2.5 rounded-xl text-sm font-medium text-rose-200 hover:bg-rose-500/15 transition-colors">Çıkış yap</a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </header>
+
+            {% block sahne_icerik %}{% endblock %}
+        </section>
+
+        <main class="flex flex-col gap-5">
+            {% block icerik %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Yeni hasta kayıt modalı (tüm sayfalarda ortak) -->
+    <div id="hastaModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+        <div class="modal-ic cam-parlak w-full max-w-3xl rounded-[28px] p-6 sm:p-8" style="background: rgba(24,14,58,0.85)" role="dialog" aria-modal="true" aria-labelledby="hastaModalBaslik">
+            <div class="flex items-start justify-between gap-4 mb-6">
+                <div>
+                    <h2 id="hastaModalBaslik" class="font-sora text-2xl font-medium text-white">Yeni hasta kaydı</h2>
+                    <p id="hastaModalAciklama" class="mt-1 text-sm text-violet-200/80">Kimlik, iletişim ve tıbbi geçmiş bilgilerini girin. Yıldızlı alanlar zorunludur.</p>
+                </div>
+                <button type="button" data-hasta-modal-kapat aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-violet-100 flex items-center justify-center hover:bg-white/10 transition-colors">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <form id="hastaForm" class="flex flex-col gap-6" novalidate>
+                <fieldset class="flex flex-col gap-3">
+                    <legend class="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-teal-300">Kimlik ve iletişim</legend>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Ad soyad *
+                            <input id="ad_soyad" type="text" required autocomplete="off" class="alan" placeholder="Hastanın adı ve soyadı"></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">TC kimlik no
+                            <input id="tc_kimlik" type="text" inputmode="numeric" maxlength="11" class="alan" placeholder="11 haneli"></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Telefon *
+                            <input id="telefon" type="tel" required class="alan" placeholder="05xx xxx xx xx"></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Doğum tarihi
+                            <input id="dogum_tarihi" type="date" class="alan"></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Cinsiyet
+                            <select id="cinsiyet" class="alan"><option value="">Seçiniz</option><option>Kadın</option><option>Erkek</option></select></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Kan grubu
+                            <select id="kan_grubu" class="alan"><option value="">Seçiniz</option>{% for k in KAN_GRUPLARI %}<option>{{ k }}</option>{% endfor %}</select></label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="flex flex-col gap-3">
+                    <legend class="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-violet-300">Tıbbi geçmiş</legend>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="relative flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Hastalık tanısı
+                            <input id="hastalik_tanisi" type="text" autocomplete="off" class="alan" placeholder="Tanı yazmaya başlayın…">
+                            <div id="hastalik_oneri" class="oneri-listesi ince-kaydirma hidden absolute top-full left-0 right-0 mt-2 z-20 rounded-xl border border-white/15 py-1" style="background: rgba(20,12,48,0.97)"></div></label>
+                        <label class="relative flex flex-col gap-1.5 text-[13px] font-medium text-rose-200">Alerji durumu
+                            <input id="alerji_durumu" type="text" autocomplete="off" class="alan" style="border-color: rgba(253,164,175,0.35)" placeholder="Yoksa boş bırakın; birden fazlaysa virgülle">
+                            <div id="alerji_oneri" class="oneri-listesi ince-kaydirma hidden absolute top-full left-0 right-0 mt-2 z-20 rounded-xl border border-white/15 py-1" style="background: rgba(20,12,48,0.97)"></div></label>
+                        <label class="relative flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Kronik hastalıklar
+                            <input id="kronik_hastaliklar" type="text" autocomplete="off" class="alan" placeholder="Virgülle ayırarak yazın">
+                            <div id="kronik_oneri" class="oneri-listesi ince-kaydirma hidden absolute top-full left-0 right-0 mt-2 z-20 rounded-xl border border-white/15 py-1" style="background: rgba(20,12,48,0.97)"></div></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Geçmiş ameliyatlar
+                            <input id="gecmis_ameliyatlar" type="text" class="alan" placeholder="Örn. Apendektomi (2014)"></label>
+                    </div>
+                    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Şikayet
+                        <textarea id="sikayet" rows="3" class="alan" placeholder="Hastanın başvuru şikayetini kısaca yazın"></textarea></label>
+                </fieldset>
+
+                <label id="kvkkSatiri" class="flex items-start gap-3 p-4 rounded-2xl border border-teal-300/25 bg-teal-400/[0.07] cursor-pointer">
+                    <input id="kvkk_onay" type="checkbox" class="mt-0.5 w-5 h-5 shrink-0 accent-teal-400">
+                    <span class="text-[13px] leading-relaxed text-teal-50">
+                        <strong class="font-semibold text-white">KVKK açık rıza:</strong> Hastaya
+                        <a href="{{ url_for('kvkk_aydinlatma') }}" target="_blank" rel="noopener" class="underline decoration-teal-300/60 underline-offset-2 text-teal-200 hover:text-white">aydınlatma metni</a>
+                        okundu ve kişisel/sağlık verilerinin işlenmesi için açık rızası alındı.
+                        <span class="block mt-0.5 text-teal-100/70">Rıza şimdi alınmazsa daha sonra hasta dosyasından kaydedilebilir.</span>
+                    </span>
+                </label>
+
+                <div class="flex flex-wrap justify-end gap-3">
+                    <button type="button" data-hasta-modal-kapat class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+                    <button type="submit" id="hastaKaydetDugme" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors disabled:opacity-60">Hastayı kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Onay penceresi (silme vb. geri alınamaz işlemler) -->
+    <div id="onayModal" class="modal kapali fixed inset-0 z-[120] flex items-center justify-center p-4" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+        <div class="modal-ic cam-parlak w-full max-w-md rounded-[24px] p-6" style="background: rgba(24,14,58,0.92)" role="alertdialog" aria-modal="true" aria-labelledby="onayBaslik" aria-describedby="onayMetin">
+            <h2 id="onayBaslik" class="font-sora text-xl font-medium text-white">Emin misiniz?</h2>
+            <p id="onayMetin" class="mt-2 text-sm leading-relaxed text-violet-200"></p>
+            <div class="mt-6 flex flex-wrap justify-end gap-3">
+                <button type="button" id="onayVazgec" class="h-11 px-5 rounded-xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+                <button type="button" id="onayEvet" class="h-11 px-5 rounded-xl text-sm font-bold text-white bg-rose-500 hover:bg-rose-400 transition-colors">Evet, sil</button>
+            </div>
+        </div>
+    </div>
+
+    {% if kullanici %}
+    <!-- Ekran kilidi: hareketsizlikte hasta verilerini gizler -->
+    <div id="kilitEkrani" class="modal kapali fixed inset-0 z-[300] flex items-center justify-center p-4" data-kilit-dk="{{ KILIT_DAKIKA }}"
+         style="background: rgba(5,3,18,0.86); -webkit-backdrop-filter: blur(28px) saturate(140%); backdrop-filter: blur(28px) saturate(140%)" aria-hidden="true">
+        <form id="kilitForm" class="modal-ic w-full max-w-sm flex flex-col items-center gap-5 text-center" role="dialog" aria-modal="true" aria-labelledby="kilitBaslik" novalidate>
+            <div class="relative w-24 h-24">
+                <span class="absolute inset-0 rounded-full nabiz" style="background: radial-gradient(circle at 32% 28%, #FFFFFF, #A78BFA 40%, #4C1D95 85%); box-shadow: 0 0 60px rgba(167,139,250,0.55)"></span>
+                <svg aria-hidden="true" class="absolute inset-0 m-auto" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1E0B4B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            </div>
+            <div>
+                <h2 id="kilitBaslik" class="font-sora text-2xl font-medium text-white">Ekran kilitlendi</h2>
+                <p class="mt-1.5 text-sm text-violet-200">Hasta verilerinin gizliliği için {{ KILIT_DAKIKA }} dakika hareketsizlikten sonra kilitlenir.<br>{{ kullanici.gorunen_ad }} olarak devam edin.</p>
+            </div>
+            <label class="w-full text-left flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Şifre
+                <input id="kilitSifre" type="password" autocomplete="current-password" class="alan"></label>
+            <button type="submit" class="w-full h-12 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Kilidi aç</button>
+            <a href="{{ url_for('cikis') }}" class="text-[13px] font-medium text-violet-300 hover:text-white transition-colors">Farklı kullanıcıyla giriş yap</a>
+        </form>
+    </div>
+
+    <!-- Şifre değiştirme -->
+    <div id="sifreModal" class="modal kapali fixed inset-0 z-[110] flex items-center justify-center p-4" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+        <form id="sifreForm" class="modal-ic cam-parlak w-full max-w-md rounded-[24px] p-6 flex flex-col gap-4" style="background: rgba(24,14,58,0.92)" role="dialog" aria-modal="true" aria-labelledby="sifreBaslik" novalidate>
+            <h2 id="sifreBaslik" class="font-sora text-xl font-medium text-white">Şifremi değiştir</h2>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Mevcut şifre
+                <input id="sifre_mevcut" type="password" autocomplete="current-password" class="alan" required></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Yeni şifre (en az 8 karakter)
+                <input id="sifre_yeni" type="password" autocomplete="new-password" minlength="8" class="alan" required></label>
+            <div class="flex flex-wrap justify-end gap-3 pt-1">
+                <button type="button" data-modal-kapat="sifreModal" class="h-11 px-5 rounded-xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+                <button type="submit" class="h-11 px-5 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Şifreyi güncelle</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Bildirim -->
+    <div id="bildirim" role="status" aria-live="polite">
+        <div class="flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-sm font-semibold" style="-webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px)">
+            <span data-mesaj></span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+    <script src="{{ url_for('static', filename='js/klinik3d.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/klinik.js') }}"></script>
+    {% block scriptler %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% set aktif_sayfa = 'panel' %}
+{% set durum_stil = {
+    'Tamamlandı': 'bg-white/10 text-violet-50',
+    'Onaylandı': 'bg-teal-400/20 text-teal-200',
+    'Bekliyor': 'bg-amber-400/20 text-amber-200',
+    'İptal': 'bg-rose-500/20 text-rose-200'
+} %}
+
+{% block baslik %}Gösterge Paneli{% endblock %}
+{% block sahne_adi %}panel{% endblock %}
+
+{% block sahne_icerik %}
+<div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:bottom-11 max-w-[620px] flex flex-col gap-4 sm:gap-5">
+    <span class="giris cam-acik inline-flex self-start items-center gap-2 h-[30px] px-3 rounded-full text-xs font-semibold" style="animation-delay: .15s">
+        <span class="nabiz w-2 h-2 rounded-full bg-teal-300"></span>{{ bugun | tr_gun }}, {{ bugun | tr_tarih }}
+    </span>
+    <h1 class="giris font-sora text-4xl sm:text-[64px] font-medium leading-[1.02] tracking-[-0.035em] text-white" style="animation-delay: .35s">
+        {{ selamlama }}{% if kullanici %}, {{ ('Dr. ' if kullanici.doktor_mu else '') ~ kullanici.ad_soyad.split()[0] }}{% endif %}.<br>Bugün {{ istatistik.bugun_randevu }} randevu var.
+    </h1>
+    <p class="giris text-base sm:text-[17px] leading-relaxed text-violet-200 max-w-[460px]" style="animation-delay: .55s">
+        {% if siradaki %}Sıradaki hasta {{ siradaki.saat }}’da.{% else %}Bugün için bekleyen randevu kalmadı.{% endif %}
+        {% if istatistik.bekleyen %} {{ istatistik.bekleyen }} randevu onayınızı bekliyor.{% endif %}
+    </p>
+</div>
+
+<div class="giris cam-parlak hidden lg:flex absolute right-7 bottom-7 w-[320px] flex-col gap-3.5 p-5 rounded-3xl" style="animation-delay: .55s">
+    {% if siradaki %}
+    {% set h = siradaki.hasta %}
+    <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold text-violet-300">Sıradaki hasta</span>
+        <span class="font-sora text-[15px] font-semibold text-white">{{ siradaki.saat }}</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <div class="w-[46px] h-[46px] rounded-full flex items-center justify-center text-[15px] font-bold text-white" style="background: linear-gradient(135deg, #5EEAD4, #8B5CF6)">{{ h.bas_harfler }}</div>
+        <div class="min-w-0">
+            <div class="text-base font-bold text-white truncate">{{ h.ad_soyad }}</div>
+            <div class="text-[13px] text-violet-200 truncate">{{ siradaki.islem_turu }}{% if h.kan_grubu %} · {{ h.kan_grubu }}{% endif %}</div>
+        </div>
+    </div>
+    {% if h.alerjisi_var %}
+    <div class="px-3 py-2 rounded-xl text-xs font-semibold text-rose-100 bg-rose-500/25 border border-rose-300/40">Alerji: {{ h.alerji_durumu }}</div>
+    {% endif %}
+    {% if kullanici and kullanici.doktor_mu %}
+    <a href="{{ url_for('hasta_detay', hasta_id=h.id, muayene=siradaki.id) }}" class="flex items-center justify-center h-11 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Muayeneyi başlat</a>
+    {% else %}
+    <a href="{{ url_for('hasta_detay', hasta_id=h.id) }}" class="flex items-center justify-center h-11 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Hasta dosyasını aç</a>
+    {% endif %}
+    {% else %}
+    <span class="text-xs font-semibold text-violet-300">Sıradaki hasta</span>
+    <p class="text-sm text-violet-100 leading-relaxed">Bugün için bekleyen randevu yok. Yeni bir randevu oluşturabilirsiniz.</p>
+    <a href="{{ url_for('randevular_sayfasi') }}" class="flex items-center justify-center h-11 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Randevu oluştur</a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block icerik %}
+<section aria-label="Özet" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    {% for etiket, deger, not_ in [
+        ('Toplam hasta', istatistik.toplam_hasta, 'Bu hafta ' ~ istatistik.hafta_yeni ~ ' yeni kayıt'),
+        ('Bugünkü randevu', istatistik.bugun_randevu, istatistik.bugun_tamamlanan ~ ' tamamlandı, ' ~ (istatistik.bugun_randevu - istatistik.bugun_tamamlanan) ~ ' kaldı'),
+        ('Onay bekleyen', istatistik.bekleyen, ('En yakını ' ~ (en_yakin_bekleyen.tarih | kisa_tarih) ~ ' ' ~ en_yakin_bekleyen.saat) if en_yakin_bekleyen else 'Bekleyen randevu yok'),
+        ('Bu ay yeni kayıt', istatistik.ay_yeni, (bugun | tr_tarih).split(' ', 1)[1] ~ ' ayı')
+    ] %}
+    <div class="giris kart cam p-[22px] rounded-3xl flex flex-col gap-2" style="animation-delay: {{ 0.1 * loop.index }}s">
+        <span class="text-[13px] font-medium text-violet-300">{{ etiket }}</span>
+        <span class="font-sora text-[40px] font-medium tracking-[-0.03em] leading-tight text-white">{{ deger }}</span>
+        <span class="text-xs text-violet-200">{{ not_ }}</span>
+    </div>
+    {% endfor %}
+</section>
+
+<div class="flex flex-wrap gap-4 items-stretch">
+    <section class="giris cam flex-[3_1_520px] min-w-0 p-6 rounded-[28px] flex flex-col gap-2.5" style="animation-delay: .2s">
+        <div class="flex items-center justify-between">
+            <h2 class="font-sora text-xl font-medium text-white">Bugünün randevuları</h2>
+            <a href="{{ url_for('randevular_sayfasi') }}" class="flex items-center min-h-[44px] text-[13px] font-semibold text-violet-300 hover:text-white transition-colors">Tümünü gör →</a>
+        </div>
+        {% for r in bugun_randevular %}
+        <a href="{{ url_for('hasta_detay', hasta_id=r.hasta_id) }}" class="satir flex items-center gap-4 px-2 py-3 rounded-2xl border-t border-white/[0.07]" style="animation-delay: {{ 0.06 * loop.index }}s">
+            <span class="w-14 font-sora text-[15px] font-medium tabular-nums text-white">{{ r.saat }}</span>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-white truncate">{{ r.hasta.ad_soyad }}</div>
+                <div class="text-xs text-violet-300 mt-0.5 truncate">{{ r.islem_turu }}{% if r.notlar %} · {{ r.notlar }}{% endif %}</div>
+            </div>
+            <span class="inline-flex items-center h-7 px-3 rounded-full text-xs font-semibold whitespace-nowrap {{ durum_stil.get(r.durum, 'bg-white/10 text-white') }}">{{ r.durum }}</span>
+        </a>
+        {% else %}
+        <div class="py-12 text-center rounded-2xl border border-dashed border-white/15">
+            <div class="text-base font-semibold text-white">Bugün için randevu yok</div>
+            <div class="mt-1.5 text-[13px] text-violet-300">Randevular sayfasından yeni randevu oluşturabilirsiniz.</div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <div class="flex-[2_1_340px] min-w-0 flex flex-col gap-4">
+        <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4" style="animation-delay: .3s">
+            <div>
+                <h2 class="font-sora text-xl font-medium text-white">Haftalık yoğunluk</h2>
+                <p class="mt-1 text-[13px] text-violet-300">{{ pazartesi.day }} – {{ pazar | tr_tarih }} · {{ istatistik.hafta_toplam }} randevu</p>
+            </div>
+            <div role="img" aria-label="Haftalık randevu sayıları: {% for h in hafta %}{{ h.kisa }} {{ h.sayi }}{{ ', ' if not loop.last }}{% endfor %}" class="grid grid-cols-7 gap-2.5 items-end h-[180px]">
+                {% for h in hafta %}
+                <div class="flex flex-col items-center justify-end gap-2 h-full">
+                    <span class="text-xs font-semibold {{ 'text-violet-100' if h.bugun else 'text-violet-300' }}">{{ h.sayi }}</span>
+                    <div class="w-full max-w-[34px] rounded-xl transition-all duration-700" style="height: {{ h.yukseklik }}px; {{ 'background: linear-gradient(180deg, #C4B5FD, #7C3AED); box-shadow: 0 0 30px rgba(139,92,246,0.6)' if h.bugun else 'background: rgba(255,255,255,0.12)' }}"></div>
+                    <span class="text-xs font-semibold {{ 'text-violet-100' if h.bugun else 'text-violet-400' }}">{{ h.kisa }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="giris cam p-6 rounded-[28px] flex flex-col gap-2" style="animation-delay: .4s">
+            <div class="flex items-center justify-between">
+                <h2 class="font-sora text-xl font-medium text-white">Son kayıtlar</h2>
+                <a href="{{ url_for('hastalar_listesi') }}" class="flex items-center min-h-[44px] text-[13px] font-semibold text-violet-300 hover:text-white transition-colors">Tüm hastalar →</a>
+            </div>
+            {% for h in son_hastalar %}
+            <a href="{{ url_for('hasta_detay', hasta_id=h.id) }}" class="satir flex items-center gap-3 px-2 py-2.5 rounded-2xl" style="animation-delay: {{ 0.06 * loop.index }}s">
+                <div class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-[13px] font-bold text-violet-50 bg-violet-400/25">{{ h.bas_harfler }}</div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-white truncate">{{ h.ad_soyad }}</div>
+                    <div class="text-xs text-violet-300 truncate">{{ h.hastalik_tanisi or 'Tanı girilmedi' }}</div>
+                </div>
+                <span class="text-xs text-violet-300 tabular-nums">{{ h.kayit_tarihi | kisa_tarih }}</span>
+            </a>
+            {% else %}
+            <p class="py-6 text-sm text-violet-300">Henüz kayıtlı hasta yok. Sağ üstteki “Yeni Hasta +” ile ilk kaydı oluşturun.</p>
+            {% endfor %}
+        </section>
+    </div>
+</div>
+{% endblock %}

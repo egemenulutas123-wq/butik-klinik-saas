@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'İlk kurulum' if kurulum_modu else 'Giriş' }} | Klinik.SaaS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { fontFamily: { sora: ['Sora', 'system-ui', 'sans-serif'], sans: ['Inter', 'system-ui', 'sans-serif'] } } } };
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/klinik.css') }}">
+</head>
+<body class="min-h-screen text-violet-50 antialiased">
+    <section class="sahne !rounded-none min-h-screen" data-sahne="panel" style="background: radial-gradient(900px 600px at 70% 40%, #3B1D8F, #0B0624 70%)">
+        <canvas aria-hidden="true"></canvas>
+        <div class="sahne-ortu" style="background: linear-gradient(90deg, rgba(9,5,28,0.9) 0%, rgba(9,5,28,0.55) 40%, rgba(9,5,28,0) 70%)"></div>
+
+        <div class="relative z-10 min-h-screen flex flex-col justify-between gap-10 p-6 sm:p-10 lg:p-14">
+            <div class="flex items-center gap-2.5">
+                <span class="w-[34px] h-[34px] rounded-full" style="background: radial-gradient(circle at 32% 28%, #FFFFFF, #A78BFA 40%, #4C1D95 85%); box-shadow: 0 0 24px rgba(167,139,250,0.7)"></span>
+                <span class="font-sora text-[17px] font-semibold tracking-tight text-white">Klinik<span class="text-violet-300">.SaaS</span></span>
+            </div>
+
+            <div class="flex flex-col lg:flex-row lg:items-end gap-10">
+                <div class="flex-1 max-w-xl flex flex-col gap-4">
+                    <span class="giris cam-acik inline-flex self-start items-center gap-2 h-[30px] px-3 rounded-full text-xs font-semibold" style="animation-delay: .1s">
+                        <span class="nabiz w-2 h-2 rounded-full bg-teal-300"></span>Bütünleşik klinik ve randevu yönetimi
+                    </span>
+                    <h1 class="giris font-sora text-4xl sm:text-6xl font-medium leading-[1.02] tracking-[-0.035em] text-white" style="animation-delay: .25s">
+                        {% if kurulum_modu %}Kliniğinizi<br>birkaç saniyede kurun.{% else %}Tekrar hoş geldiniz.{% endif %}
+                    </h1>
+                    <p class="giris text-base sm:text-lg leading-relaxed text-violet-200 max-w-md" style="animation-delay: .4s">
+                        {% if kurulum_modu %}İlk hesap doktor yetkisiyle oluşturulur. Ekip arkadaşlarınızı daha sonra “Ekip” sayfasından ekleyebilirsiniz.{% else %}Hasta kayıtlarına ve randevulara erişmek için giriş yapın.{% endif %}
+                    </p>
+                </div>
+
+                <form id="girisForm" class="giris cam-parlak w-full max-w-[420px] p-7 rounded-[28px] flex flex-col gap-4" style="background: rgba(24,14,58,0.62); animation-delay: .45s" novalidate>
+                    <h2 class="font-sora text-2xl font-medium text-white">{{ 'İlk kurulum' if kurulum_modu else 'Giriş yap' }}</h2>
+                    {% if zaman_asimi %}
+                    <p role="status" class="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl text-[13px] font-medium text-amber-100 bg-amber-400/15 border border-amber-300/30">
+                        <svg aria-hidden="true" class="shrink-0 mt-0.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                        Uzun süre işlem yapılmadığı için güvenliğiniz adına oturumunuz kapatıldı.</p>
+                    {% endif %}
+                    {% if kurulum_modu %}
+                    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Ad soyad
+                        <input id="ad_soyad" type="text" autocomplete="name" class="alan" placeholder="Adınız ve soyadınız" required></label>
+                    {% endif %}
+                    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">E-posta
+                        <input id="email" type="email" autocomplete="email" class="alan" placeholder="ornek@klinik.com" required></label>
+                    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Şifre{% if kurulum_modu %} (en az 8 karakter){% endif %}
+                        <span class="relative">
+                            <input id="sifre" type="password" autocomplete="{{ 'new-password' if kurulum_modu else 'current-password' }}" class="alan pr-[88px]" required>
+                            <button type="button" id="sifreGoster" class="absolute right-2 top-1/2 -translate-y-1/2 h-9 px-3 rounded-lg text-xs font-semibold text-violet-200 hover:bg-white/10 transition-colors">Göster</button>
+                        </span></label>
+                    <p id="girisHata" role="alert" class="hidden px-3.5 py-2.5 rounded-xl text-[13px] font-medium text-rose-100 bg-rose-500/20 border border-rose-300/35"></p>
+                    <button type="submit" id="girisDugme" class="h-[52px] mt-1 rounded-2xl text-[15px] font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors disabled:opacity-60">{{ 'Hesabı oluştur ve başla' if kurulum_modu else 'Giriş yap' }}</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+    <script src="{{ url_for('static', filename='js/klinik3d.js') }}"></script>
+    <script>
+    (function () {
+        var KURULUM = {{ 'true' if kurulum_modu else 'false' }};
+        var SONRAKI = {{ sonraki | tojson }};
+        var form = document.getElementById('girisForm');
+        var hataKutu = document.getElementById('girisHata');
+        var dugme = document.getElementById('girisDugme');
+        var sifre = document.getElementById('sifre');
+
+        document.getElementById('sifreGoster').addEventListener('click', function () {
+            var gizli = sifre.type === 'password';
+            sifre.type = gizli ? 'text' : 'password';
+            this.textContent = gizli ? 'Gizle' : 'Göster';
+        });
+
+        function hataGoster(m) { hataKutu.textContent = m; hataKutu.classList.remove('hidden'); }
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            hataKutu.classList.add('hidden');
+            var veri = { email: document.getElementById('email').value.trim(), sifre: sifre.value, sonraki: SONRAKI };
+            if (KURULUM) veri.ad_soyad = document.getElementById('ad_soyad').value.trim();
+            if (!veri.email || !veri.sifre) { hataGoster('E-posta ve şifre zorunludur.'); return; }
+            var metin = dugme.textContent;
+            dugme.disabled = true;
+            dugme.textContent = KURULUM ? 'Hesap oluşturuluyor…' : 'Giriş yapılıyor…';
+            try {
+                var y = await fetch(KURULUM ? '/api/kurulum' : '/api/giris', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(veri)
+                });
+                var g = {};
+                try { g = await y.json(); } catch (x) {}
+                if (!y.ok) throw new Error(g.hata || 'Giriş yapılamadı.');
+                window.location.href = g.yonlendir || '/';
+            } catch (h) {
+                hataGoster(h.message);
+                dugme.disabled = false;
+                dugme.textContent = metin;
+            }
+        });
+        setTimeout(function () { var ilk = form.querySelector('input'); if (ilk) ilk.focus(); }, 300);
+    })();
+    </script>
+</body>
+</html>

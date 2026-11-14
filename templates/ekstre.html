@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hesap ekstresi · {{ hasta.ad_soyad }}</title>
+    {% include '_belge_stil.html' %}
+    <style>
+        @page { size: A4; margin: 14mm; }
+        .sayfa { width: 210mm; min-height: 297mm; padding: 16mm 15mm; }
+        .ozet { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .ozet div { padding: 10px 12px; border-radius: 10px; background: #F5F3FC; }
+        .ozet span { display: block; font-size: 10px; color: #6B6585; }
+        .ozet strong { display: block; margin-top: 3px; font: 600 17px Sora, sans-serif; font-variant-numeric: tabular-nums; }
+        h2 { margin: 18px 0 6px; font: 600 13px Sora, sans-serif; }
+    </style>
+</head>
+<body>
+    <div class="arac">
+        <button type="button" class="ana" onclick="window.print()">Yazdır / PDF olarak kaydet</button>
+        <button type="button" class="ikinci" onclick="window.close()">Kapat</button>
+    </div>
+    {% set gecerli = satirlar | rejectattr('h.iptal') | list %}
+    <main class="sayfa">
+        <header class="ust">
+            <div class="marka">
+                <div class="logo" aria-hidden="true"></div>
+                <div>
+                    <div class="klinik">{{ KLINIK_ADI }}</div>
+                    <div class="klinik-alt">Klinik.SaaS · Bütünleşik Klinik Yönetimi</div>
+                </div>
+            </div>
+            <div class="baslik">
+                <h1>HESAP EKSTRESİ</h1>
+                <div>{{ bugun | tr_tarih }}</div>
+            </div>
+        </header>
+
+        <section class="bilgi-izgara">
+            <div><span>Hasta</span><br><strong>{{ hasta.ad_soyad }}</strong></div>
+            <div><span>Hasta no</span><br><strong>#{{ '%05d' | format(hasta.id) }}</strong></div>
+            <div><span>TC kimlik no</span><br><strong>{{ hasta.maskeli_tc }}</strong></div>
+            <div><span>Telefon</span><br><strong>{{ hasta.telefon }}</strong></div>
+        </section>
+
+        <div class="ozet">
+            <div><span>Toplam hizmet</span><strong>{{ gecerli | selectattr('h.tur', 'equalto', 'ucret') | map(attribute='h.tutar') | sum | tl }}</strong></div>
+            <div><span>Toplam ödeme</span><strong>{{ gecerli | selectattr('h.tur', 'equalto', 'tahsilat') | map(attribute='h.tutar') | sum | tl }}</strong></div>
+            <div><span>{{ 'Kalan borç' if bakiye >= 0 else 'Hasta alacağı' }}</span><strong style="color: {{ '#B45309' if bakiye > 0 else '#047857' }}">{{ bakiye | abs | tl }}</strong></div>
+        </div>
+
+        <h2>Hareketler</h2>
+        <table>
+            <thead><tr><th>Tarih</th><th>Belge</th><th>İşlem</th><th>Açıklama</th><th class="sag">Borç</th><th class="sag">Alacak</th><th class="sag">Bakiye</th></tr></thead>
+            <tbody>
+            {% for s in satirlar %}
+            {% set h = s.h %}
+            <tr class="{{ 'iptal' if h.iptal else '' }}">
+                <td>{{ h.tarih.strftime('%d.%m.%Y') }}</td>
+                <td>{{ h.belge_no }}</td>
+                <td>{{ h.tur_adi }}{% if h.yontem %} · {{ h.yontem }}{% endif %}</td>
+                <td>{{ h.aciklama or '' }}</td>
+                <td class="sag">{{ h.tutar | tl if h.bakiye_etkisi > 0 else '' }}</td>
+                <td class="sag">{{ h.tutar | tl if h.bakiye_etkisi < 0 else '' }}</td>
+                <td class="sag">{{ s.bakiye | tl }}</td>
+            </tr>
+            {% if h.iptal %}<tr class="iptal"><td></td><td class="neden" colspan="6">İptal: {{ h.iptal_nedeni }}</td></tr>{% endif %}
+            {% else %}
+            <tr><td colspan="7" style="text-align:center; padding:24px; color:#6B6585">Hesap hareketi yok.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="dip">Bu ekstre bilgi amaçlıdır; mali belge yerine geçmez. İptal edilen kayıtlar üstü çizili gösterilir ve bakiyeye dahil edilmez.</div>
+    </main>
+</body>
+</html>

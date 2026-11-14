@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reçete {{ recete.recete_no }} · {{ hasta.ad_soyad }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @page { size: A5; margin: 12mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #E9E6F5; font-family: Inter, system-ui, sans-serif; color: #1A1530; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .arac { position: sticky; top: 0; z-index: 5; display: flex; justify-content: center; gap: 10px; padding: 14px; background: rgba(20,12,48,0.92); }
+        .arac button { height: 44px; padding: 0 20px; border-radius: 12px; border: 0; font: 600 14px Inter, sans-serif; cursor: pointer; }
+        .arac .ana { background: #fff; color: #1E0B4B; }
+        .arac .ikinci { background: rgba(255,255,255,0.1); color: #fff; }
+        .sayfa { width: 148mm; min-height: 210mm; margin: 24px auto; padding: 14mm 13mm; background: #fff; border-radius: 6px; box-shadow: 0 24px 60px -24px rgba(30,11,75,0.45); display: flex; flex-direction: column; }
+        .ust { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid #1E0B4B; }
+        .marka { display: flex; align-items: center; gap: 10px; }
+        .logo { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #fff, #A78BFA 40%, #4C1D95 85%); }
+        .klinik { font: 600 16px Sora, sans-serif; letter-spacing: -0.01em; }
+        .klinik-alt { font-size: 10px; color: #6B6585; margin-top: 2px; }
+        .baslik { text-align: right; }
+        .baslik h1 { margin: 0; font: 600 20px Sora, sans-serif; letter-spacing: 0.08em; color: #1E0B4B; }
+        .baslik div { font-size: 10px; color: #6B6585; margin-top: 3px; font-variant-numeric: tabular-nums; }
+        .hasta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #F5F3FC; font-size: 11px; }
+        .hasta span { color: #6B6585; }
+        .hasta strong { font-weight: 600; color: #1A1530; }
+        .tani { margin-top: 10px; font-size: 11px; }
+        .tani span { color: #6B6585; }
+        .alerji { margin-top: 8px; padding: 7px 10px; border-radius: 8px; background: #FFF1F2; color: #9F1239; font-size: 10.5px; font-weight: 600; }
+        .rx { margin-top: 14px; font: 600 26px Sora, serif; color: #1E0B4B; line-height: 1; }
+        ol { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+        li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding-bottom: 10px; border-bottom: 1px dashed #DDD8EE; }
+        li:last-child { border-bottom: 0; }
+        .no { width: 22px; height: 22px; border-radius: 6px; background: #1E0B4B; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+        .ilac { font-size: 13px; font-weight: 700; }
+        .detay { margin-top: 3px; font-size: 11px; color: #3F3A55; }
+        .kutu { float: right; font-size: 10px; font-weight: 600; color: #6B6585; }
+        .not { margin-top: 12px; font-size: 11px; color: #3F3A55; }
+        .alt { margin-top: auto; padding-top: 18px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+        .alt .bilgi { font-size: 9px; color: #8A85A0; max-width: 60%; line-height: 1.5; }
+        .imza { text-align: center; min-width: 140px; }
+        .imza .cizgi { height: 38px; border-bottom: 1px solid #1A1530; }
+        .imza div { font-size: 11px; margin-top: 4px; font-weight: 600; }
+        .imza span { font-size: 9px; color: #6B6585; }
+        @media print {
+            body { background: #fff; }
+            .arac { display: none; }
+            .sayfa { margin: 0; width: auto; min-height: auto; height: 100%; padding: 0; box-shadow: none; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="arac">
+        <button type="button" class="ana" onclick="window.print()">Yazdır / PDF olarak kaydet</button>
+        <button type="button" class="ikinci" onclick="window.close()">Kapat</button>
+    </div>
+
+    <main class="sayfa">
+        <header class="ust">
+            <div class="marka">
+                <div class="logo" aria-hidden="true"></div>
+                <div>
+                    <div class="klinik">{{ KLINIK_ADI }}</div>
+                    <div class="klinik-alt">Klinik.SaaS · Bütünleşik Klinik Yönetimi</div>
+                </div>
+            </div>
+            <div class="baslik">
+                <h1>REÇETE</h1>
+                <div>{{ recete.recete_no }}</div>
+                <div>{{ recete.tarih | kisa_tarih }} · {{ recete.tarih.strftime('%H:%M') }}</div>
+            </div>
+        </header>
+
+        <section class="hasta" aria-label="Hasta bilgileri">
+            <div><span>Hasta</span><br><strong>{{ hasta.ad_soyad }}</strong></div>
+            <div><span>TC kimlik no</span><br><strong>{{ hasta.tc_kimlik or '—' }}</strong></div>
+            <div><span>Doğum tarihi / yaş</span><br><strong>{{ hasta.dogum_tarihi or '—' }}{% if hasta.yas is not none %} · {{ hasta.yas }} yaş{% endif %}</strong></div>
+            <div><span>Cinsiyet / kan grubu</span><br><strong>{{ hasta.cinsiyet or '—' }} · {{ hasta.kan_grubu or '—' }}</strong></div>
+        </section>
+
+        {% if recete.tani %}<div class="tani"><span>Tanı:</span> <strong>{{ recete.tani }}</strong></div>{% endif %}
+        {% if hasta.alerjisi_var %}<div class="alerji">Bilinen alerji: {{ hasta.alerji_durumu }}</div>{% endif %}
+
+        <div class="rx" aria-hidden="true">℞</div>
+        <ol>
+            {% for k in recete.kalemler %}
+            <li>
+                <span class="no">{{ loop.index }}</span>
+                <div>
+                    <div class="ilac">{{ k.ilac_adi }}<span class="kutu">{{ k.adet or 1 }} kutu</span></div>
+                    <div class="detay">{{ [k.doz, k.kullanim, k.sure] | select | join(' · ') }}</div>
+                </div>
+            </li>
+            {% endfor %}
+        </ol>
+
+        {% if recete.notlar %}<div class="not"><strong>Hekim notu:</strong> {{ recete.notlar }}</div>{% endif %}
+
+        <footer class="alt">
+            <div class="bilgi">Bu reçete {{ KLINIK_ADI }} tarafından elektronik ortamda oluşturulmuştur. İlaçlarınızı hekiminizin önerdiği doz ve sürede kullanınız.</div>
+            <div class="imza">
+                <div class="cizgi"></div>
+                <div>{{ recete.doktor.gorunen_ad if recete.doktor else '' }}</div>
+                <span>İmza / Kaşe</span>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        if (new URLSearchParams(location.search).get('otomatik') === '1') {
+            window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });
+        }
+    </script>
+</body>
+</html>

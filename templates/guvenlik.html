@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+{% set aktif_sayfa = 'guvenlik' %}
+
+{% block baslik %}Güvenlik ve KVKK{% endblock %}
+{% block sahne_adi %}guvenlik{% endblock %}
+{% block sahne_yukseklik %}h-[480px] md:h-[440px]{% endblock %}
+{% block sahne_zemin %}radial-gradient(800px 500px at 70% 45%, #0E3B4A, #0A0B26 70%){% endblock %}
+{% block govde_zemin %}radial-gradient(900px 500px at 60% 460px, rgba(13,148,136,0.14), transparent 70%), #06071A{% endblock %}
+
+{% block sahne_icerik %}
+<div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:bottom-10 max-w-[660px] flex flex-col gap-4">
+    <span class="giris cam-acik inline-flex self-start items-center gap-2 h-[30px] px-3 rounded-full text-xs font-semibold" style="animation-delay: .1s">
+        <span class="nabiz w-2 h-2 rounded-full bg-teal-300"></span>Koruma aktif · tüm erişimler kayıt altında
+    </span>
+    <h1 class="giris font-sora text-5xl sm:text-[64px] font-medium leading-none tracking-[-0.035em] text-white" style="animation-delay: .2s">Güvenlik ve KVKK</h1>
+    <div class="giris flex flex-wrap gap-2" style="animation-delay: .35s">
+        <span class="cam-acik inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-[13px] font-semibold"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Ekran kilidi {{ KILIT_DAKIKA }} dk</span>
+        <span class="cam-acik inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-[13px] font-semibold"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Oturum zaman aşımı {{ oturum_dakika }} dk</span>
+        <span class="cam-acik inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-[13px] font-semibold"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Son yedek: {{ son_yedek.zaman if son_yedek else 'henüz yok' }}</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block icerik %}
+<!-- Özet -->
+<section aria-label="Özet" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="giris kart cam p-[22px] rounded-3xl flex items-center gap-4" style="animation-delay: .05s">
+        {% set oran = ozet.riza_orani %}
+        <svg aria-hidden="true" class="shrink-0 -rotate-90" width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="{{ '#5EEAD4' if oran >= 90 else '#FCD34D' if oran >= 60 else '#FB7185' }}" stroke-width="7" stroke-linecap="round"
+                    pathLength="100" stroke-dasharray="{{ oran }} 100" class="vital-cizgi" style="stroke-dasharray: {{ oran }} 100; stroke-dashoffset: 0; animation: none"/>
+        </svg>
+        <div>
+            <div class="text-[13px] font-medium text-teal-200">Açık rıza oranı</div>
+            <div class="font-sora text-[32px] font-medium leading-tight text-white">%{{ oran }}</div>
+            <div class="text-xs text-teal-50/80">{{ ozet.rizali }} / {{ ozet.toplam_hasta }} hasta</div>
+        </div>
+    </div>
+    {% for etiket, deger, not_ in [('Son 24 saatte işlem', ozet.son24, 'Günlüğe yazılan tüm işlemler'), ('Hasta dosyası görüntüleme', ozet.goruntuleme, 'Son 24 saat'), ('Hatalı giriş denemesi', ozet.hatali_giris, 'Son 7 gün · 5 denemede 5 dk kilit')] %}
+    <div class="giris kart cam p-[22px] rounded-3xl flex flex-col gap-1.5" style="animation-delay: {{ 0.1 * (loop.index + 1) }}s">
+        <span class="text-[13px] font-medium text-teal-200">{{ etiket }}</span>
+        <span class="font-sora text-[38px] font-medium leading-tight tracking-[-0.03em] {{ 'text-rose-200' if loop.last and deger > 0 else 'text-white' }}">{{ deger }}</span>
+        <span class="text-xs text-teal-50/80">{{ not_ }}</span>
+    </div>
+    {% endfor %}
+</section>
+
+<!-- Sekmeler -->
+<section class="giris cam rounded-[28px] overflow-hidden" style="animation-delay: .25s">
+    <div role="tablist" aria-label="Güvenlik bölümleri" class="flex flex-wrap gap-1 p-2 border-b border-white/10 bg-black/10">
+        {% for anahtar, etiket in [('gunluk', 'İşlem günlüğü'), ('riza', 'Açık rıza'), ('yedek', 'Yedekleme')] %}
+        <button type="button" role="tab" id="sekme-{{ anahtar }}" aria-controls="panel-{{ anahtar }}" data-sekme="{{ anahtar }}"
+                class="sekme h-11 px-5 rounded-2xl text-sm font-semibold transition-colors">{{ etiket }}{% if anahtar == 'riza' and ozet.toplam_hasta - ozet.rizali > 0 %} <span class="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold bg-amber-300 text-[#451A03]">{{ ozet.toplam_hasta - ozet.rizali }}</span>{% endif %}</button>
+        {% endfor %}
+    </div>
+
+    <!-- İşlem günlüğü -->
+    <div id="panel-gunluk" role="tabpanel" aria-labelledby="sekme-gunluk" class="p-5 sm:p-6 flex flex-col gap-4">
+        <form id="gunlukFiltre" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2.5 items-end" novalidate>
+            <label class="flex flex-col gap-1.5 text-xs font-semibold text-teal-200">Ara
+                <input name="q" type="search" class="alan !h-11" placeholder="Hasta adı, açıklama, kullanıcı…"></label>
+            <label class="flex flex-col gap-1.5 text-xs font-semibold text-teal-200">Kullanıcı
+                <select name="kullanici" class="alan !h-11"><option value="">Tümü</option>{% for k in kullanicilar %}<option value="{{ k.id }}">{{ k.gorunen_ad }}</option>{% endfor %}</select></label>
+            <label class="flex flex-col gap-1.5 text-xs font-semibold text-teal-200">İşlem
+                <select name="islem" class="alan !h-11"><option value="">Tümü</option>{% for k, v in islem_adlari.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+            <label class="flex flex-col gap-1.5 text-xs font-semibold text-teal-200">Kayıt türü
+                <select name="hedef" class="alan !h-11"><option value="">Tümü</option>{% for k, v in hedef_adlari.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+            <label class="flex flex-col gap-1.5 text-xs font-semibold text-teal-200">Başlangıç
+                <input name="baslangic" type="date" class="alan !h-11"></label>
+            <label class="flex flex-col gap-1.5 text-xs font-semibold text-teal-200">Bitiş
+                <input name="bitis" type="date" class="alan !h-11"></label>
+            <a id="csvIndir" href="{{ url_for('gunluk_csv') }}" class="flex items-center justify-center gap-2 h-11 px-4 rounded-xl text-[13px] font-bold text-[#042F2E] bg-teal-200 hover:bg-teal-100 transition-colors whitespace-nowrap">
+                <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg>CSV</a>
+        </form>
+        <div class="overflow-x-auto ince-kaydirma rounded-2xl border border-white/[0.07]">
+            <table class="w-full min-w-[860px] text-sm">
+                <thead><tr class="text-left text-xs text-teal-200/90 bg-white/[0.03]">
+                    <th class="px-4 py-3 font-semibold">Zaman</th><th class="px-3 font-semibold">Kullanıcı</th><th class="px-3 font-semibold">İşlem</th>
+                    <th class="px-3 font-semibold">Kayıt</th><th class="px-3 font-semibold">Açıklama</th><th class="px-3 font-semibold">IP</th>
+                </tr></thead>
+                <tbody id="gunlukSatirlar"></tbody>
+            </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 text-[13px] text-teal-50/80">
+            <span id="gunlukSayac"></span>
+            <div class="flex gap-2">
+                <button type="button" id="gunlukOnceki" class="h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 disabled:opacity-40">Önceki</button>
+                <button type="button" id="gunlukSonraki" class="h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 disabled:opacity-40">Sonraki</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Açık rıza -->
+    <div id="panel-riza" role="tabpanel" aria-labelledby="sekme-riza" class="hidden p-5 sm:p-6 flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="font-sora text-xl font-medium text-white">Rızası bekleyen hastalar</h2>
+                <p class="mt-0.5 text-[13px] text-teal-50/80">Aydınlatma metnini yazdırıp imzalatın, ardından rızayı buradan kaydedin. Her kayıt günlüğe işlenir.</p>
+            </div>
+            <a href="{{ url_for('kvkk_aydinlatma') }}" target="_blank" rel="noopener" class="flex items-center h-11 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15 transition-colors">Boş aydınlatma metni</a>
+        </div>
+        <div class="flex flex-col gap-2">
+            {% for h in rizasiz %}
+            <div class="satir flex flex-wrap items-center gap-4 px-4 py-3 rounded-2xl bg-white/[0.035] border border-white/[0.06]" style="animation-delay: {{ [0.04 * loop.index, 0.8] | min }}s">
+                <div class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-[13px] font-bold text-amber-50 bg-amber-400/20">{{ h.bas_harfler }}</div>
+                <div class="flex-[1_1_200px] min-w-0">
+                    <a href="{{ url_for('hasta_detay', hasta_id=h.id) }}" class="text-[15px] font-semibold text-white hover:text-teal-200">{{ h.ad_soyad }}</a>
+                    <div class="text-xs text-teal-50/70">Kayıt {{ h.kayit_tarihi | kisa_tarih }} · TC {{ h.maskeli_tc }}</div>
+                </div>
+                <a href="{{ url_for('kvkk_aydinlatma', hasta=h.id) }}" target="_blank" rel="noopener" class="h-9 px-3 rounded-[10px] flex items-center text-xs font-semibold text-teal-50 border border-white/15 hover:bg-white/10">Metni yazdır</a>
+                <button type="button" data-riza="{{ h.id }}" data-ad="{{ h.ad_soyad }}" class="h-9 px-3 rounded-[10px] text-xs font-bold text-[#042F2E] bg-teal-200 hover:bg-teal-100">Rızayı kaydet</button>
+            </div>
+            {% else %}
+            <div class="py-12 text-center rounded-2xl border border-dashed border-white/15">
+                <div class="text-base font-semibold text-white">Tüm hastaların açık rızası kayıtlı</div>
+                <div class="mt-1.5 text-[13px] text-teal-50/70">Yeni hasta kaydında rıza kutusunu işaretlemeyi unutmayın.</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Yedekleme -->
+    <div id="panel-yedek" role="tabpanel" aria-labelledby="sekme-yedek" class="hidden p-5 sm:p-6 flex-col gap-5">
+        <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4">
+            <div class="relative overflow-hidden p-6 rounded-[24px] border border-teal-300/25 flex flex-col gap-4" style="background: linear-gradient(135deg, rgba(45,212,191,0.16), rgba(99,102,241,0.12))">
+                <div>
+                    <h2 class="font-sora text-xl font-medium text-white">Veritabanı yedeği</h2>
+                    <p class="mt-1 text-[13px] leading-relaxed text-teal-50/85">Her gün ilk girişte otomatik yedek alınır ve son {{ 14 }} otomatik yedek saklanır. Önemli bir işlemden önce elle de yedek alabilirsiniz. Yedekler sunucuda <code class="px-1.5 py-0.5 rounded bg-black/30 text-teal-100">instance/yedekler</code> klasöründedir; düzenli olarak harici bir diske indirmeniz önerilir.</p>
+                </div>
+                <button type="button" id="yedekAl" class="self-start flex items-center gap-2.5 h-12 px-6 rounded-2xl text-sm font-bold text-[#042F2E] bg-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-60" style="box-shadow: 0 16px 34px -14px rgba(45,212,191,0.8)">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M12 11v6m-3-3h6"/></svg>Şimdi yedek al</button>
+            </div>
+            <label id="yedekBirak" class="flex flex-col items-center justify-center gap-2 p-6 rounded-[24px] border-2 border-dashed border-white/15 text-center cursor-pointer hover:border-teal-300/50 hover:bg-white/[0.03] transition-colors">
+                <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#99F6E4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                <span class="text-[15px] font-semibold text-white">Yedek dosyasından geri yükle</span>
+                <span class="text-[13px] text-teal-50/75">.db dosyasını buraya sürükleyin veya seçin. Geri yüklemeden önce mevcut durum otomatik yedeklenir.</span>
+                <input id="yedekDosya" type="file" accept=".db,.sqlite,.sqlite3" class="sr-only">
+            </label>
+        </div>
+        <div class="flex flex-col gap-2" id="yedekListe"></div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scriptler %}
+<script>
+(function () {
+    function $(id) { return document.getElementById(id); }
+    function el(t, c, m) { var e = document.createElement(t); if (c) e.className = c; if (m !== undefined && m !== null) e.textContent = m; return e; }
+
+    // ---------- Sekmeler ----------
+    var aktifSekme = location.hash.replace('#', '') || 'gunluk';
+    function sekmeGoster(ad) {
+        if (['gunluk', 'riza', 'yedek'].indexOf(ad) === -1) ad = 'gunluk';
+        aktifSekme = ad;
+        document.querySelectorAll('.sekme').forEach(function (b) {
+            var aktif = b.dataset.sekme === ad;
+            b.setAttribute('aria-selected', aktif ? 'true' : 'false');
+            b.className = 'sekme h-11 px-5 rounded-2xl text-sm font-semibold transition-colors ' + (aktif ? 'bg-white text-[#042F2E]' : 'text-teal-50 hover:bg-white/10');
+        });
+        ['gunluk', 'riza', 'yedek'].forEach(function (p) {
+            var panel = $('panel-' + p);
+            panel.classList.toggle('hidden', p !== ad);
+            panel.classList.toggle('flex', p === ad);
+        });
+        history.replaceState(null, '', '#' + ad);
+    }
+    document.querySelectorAll('.sekme').forEach(function (b) { b.addEventListener('click', function () { sekmeGoster(b.dataset.sekme); }); });
+    sekmeGoster(aktifSekme);
+
+    // ---------- İşlem günlüğü ----------
+    var RENK = {
+        giris: 'bg-teal-400/15 text-teal-100', cikis: 'bg-white/10 text-teal-50', giris_hatali: 'bg-rose-500/25 text-rose-100',
+        kilit_acma: 'bg-white/10 text-teal-50', goruntuleme: 'bg-sky-400/15 text-sky-100', olusturma: 'bg-emerald-400/15 text-emerald-100',
+        guncelleme: 'bg-violet-400/20 text-violet-100', silme: 'bg-rose-500/20 text-rose-100', yazdirma: 'bg-white/10 text-white',
+        disa_aktarma: 'bg-amber-400/20 text-amber-100', riza: 'bg-teal-400/20 text-teal-100', yedek: 'bg-indigo-400/20 text-indigo-100',
+        geri_yukleme: 'bg-amber-400/25 text-amber-50', yetki: 'bg-fuchsia-400/20 text-fuchsia-100',
+        tahsilat: 'bg-yellow-300/20 text-yellow-100', iptal: 'bg-rose-500/15 text-rose-100',
+        online: 'bg-cyan-400/20 text-cyan-100', ayar: 'bg-white/10 text-white'
+    };
+    var sayfa = 1, sayfaSayisi = 1, zaman;
+    var filtre = $('gunlukFiltre');
+
+    function parametreler() {
+        var p = new URLSearchParams();
+        new FormData(filtre).forEach(function (v, k) { if (v) p.set(k, v); });
+        return p;
+    }
+    async function gunlukYukle() {
+        var p = parametreler();
+        $('csvIndir').href = '{{ url_for("gunluk_csv") }}?' + p.toString();
+        p.set('sayfa', sayfa);
+        var govde = $('gunlukSatirlar');
+        try {
+            var y = await fetch('/api/islem_kayitlari?' + p.toString());
+            if (y.status === 401) { location.href = '/giris?zaman_asimi=1'; return; }
+            var v = await y.json();
+            sayfaSayisi = v.sayfa_sayisi;
+            govde.innerHTML = '';
+            if (!v.kayitlar.length) {
+                var tr = el('tr'); var td = el('td', 'px-4 py-10 text-center text-teal-50/70', 'Bu filtrelere uyan kayıt yok.');
+                td.colSpan = 6; tr.appendChild(td); govde.appendChild(tr);
+            }
+            v.kayitlar.forEach(function (k, n) {
+                var tr = el('tr', 'satir border-t border-white/[0.05]');
+                tr.style.animationDelay = (n * 0.02) + 's';
+                tr.appendChild(el('td', 'px-4 py-2.5 whitespace-nowrap tabular-nums text-teal-50/90', k.zaman));
+                tr.appendChild(el('td', 'px-3 whitespace-nowrap font-medium text-white', k.kullanici));
+                var tdI = el('td', 'px-3');
+                tdI.appendChild(el('span', 'inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap ' + (RENK[k.islem] || 'bg-white/10 text-white'), k.islem_adi));
+                tr.appendChild(tdI);
+                var tdH = el('td', 'px-3 whitespace-nowrap text-teal-50/90');
+                if (k.hedef_tur === 'hasta' && k.hedef_id && k.islem !== 'silme') {
+                    var a = el('a', 'underline decoration-white/20 underline-offset-2 hover:text-white', k.hedef + ' #' + k.hedef_id);
+                    a.href = '/hasta/' + k.hedef_id; tdH.appendChild(a);
+                } else tdH.textContent = k.hedef + (k.hedef_id ? ' #' + k.hedef_id : '');
+                tr.appendChild(tdH);
+                tr.appendChild(el('td', 'px-3 text-violet-50 max-w-[380px] truncate', k.aciklama));
+                tr.lastChild.title = k.aciklama;
+                tr.appendChild(el('td', 'px-3 whitespace-nowrap tabular-nums text-teal-50/60 text-xs', k.ip));
+                govde.appendChild(tr);
+            });
+            $('gunlukSayac').textContent = v.toplam + ' kayıt · sayfa ' + v.sayfa + ' / ' + v.sayfa_sayisi;
+            $('gunlukOnceki').disabled = sayfa <= 1;
+            $('gunlukSonraki').disabled = sayfa >= sayfaSayisi;
+        } catch (e) { Klinik.bildir('Günlük yüklenemedi.', 'hata'); }
+    }
+    filtre.addEventListener('input', function () { clearTimeout(zaman); zaman = setTimeout(function () { sayfa = 1; gunlukYukle(); }, 300); });
+    filtre.addEventListener('submit', function (e) { e.preventDefault(); });
+    $('gunlukOnceki').addEventListener('click', function () { if (sayfa > 1) { sayfa--; gunlukYukle(); } });
+    $('gunlukSonraki').addEventListener('click', function () { if (sayfa < sayfaSayisi) { sayfa++; gunlukYukle(); } });
+    gunlukYukle();
+
+    // ---------- Açık rıza ----------
+    document.querySelectorAll('[data-riza]').forEach(function (b) {
+        b.addEventListener('click', async function () {
+            if (!(await Klinik.onayla(b.dataset.ad + ' aydınlatıldı ve açık rızası (imzalı) alındı mı? Kayıt adınızla günlüğe işlenecek.', 'Evet, kaydet'))) return;
+            try {
+                var s = await Klinik.jsonGonder('/api/hasta/' + b.dataset.riza + '/kvkk', { onay: true });
+                Klinik.bildir(s.mesaj);
+                setTimeout(function () { location.reload(); }, 600);
+            } catch (h) { Klinik.bildir(h.message, 'hata'); }
+        });
+    });
+
+    // ---------- Yedekleme ----------
+    var TUR_RENK = { manuel: 'bg-teal-400/20 text-teal-100', otomatik: 'bg-indigo-400/20 text-indigo-100',
+                     'geri-yukleme-oncesi': 'bg-amber-400/20 text-amber-100', yuklenen: 'bg-white/10 text-white' };
+    function yedekleriCiz(liste) {
+        var kap = $('yedekListe');
+        kap.innerHTML = '';
+        kap.appendChild(el('h3', 'font-sora text-lg font-medium text-white', 'Kayıtlı yedekler (' + liste.length + ')'));
+        if (!liste.length) {
+            kap.appendChild(el('div', 'py-10 text-center rounded-2xl border border-dashed border-white/15 text-sm text-teal-50/70', 'Henüz yedek yok. “Şimdi yedek al” ile ilk yedeği oluşturun.'));
+            return;
+        }
+        liste.forEach(function (y, n) {
+            var satir = el('div', 'satir flex flex-wrap items-center gap-4 px-4 py-3 rounded-2xl bg-white/[0.035] border border-white/[0.06]');
+            satir.style.animationDelay = Math.min(n * 0.04, 0.6) + 's';
+            var ikon = el('div', 'w-10 h-10 shrink-0 rounded-xl flex items-center justify-center bg-white/[0.06]');
+            ikon.innerHTML = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#99F6E4" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>';
+            satir.appendChild(ikon);
+            var bilgi = el('div', 'flex-[1_1_220px] min-w-0');
+            bilgi.appendChild(el('div', 'text-[15px] font-semibold text-white tabular-nums', y.zaman));
+            bilgi.appendChild(el('div', 'text-xs text-teal-50/60 truncate', y.ad + ' · ' + y.boyut_metin));
+            satir.appendChild(bilgi);
+            satir.appendChild(el('span', 'inline-flex items-center h-7 px-3 rounded-full text-xs font-semibold ' + (TUR_RENK[y.tur] || 'bg-white/10 text-white'), y.tur_adi));
+            var aks = el('div', 'flex gap-1.5');
+            var indir = el('a', 'h-9 px-3 rounded-[10px] flex items-center text-xs font-semibold text-teal-50 border border-white/15 hover:bg-white/10', 'İndir');
+            indir.href = '/yedek/' + encodeURIComponent(y.ad) + '/indir';
+            aks.appendChild(indir);
+            var geri = el('button', 'h-9 px-3 rounded-[10px] text-xs font-semibold text-amber-100 border border-amber-300/35 hover:bg-amber-400/15', 'Geri yükle');
+            geri.type = 'button';
+            geri.addEventListener('click', function () { geriYukle({ ad: y.ad }, y.zaman + ' tarihli yedek'); });
+            aks.appendChild(geri);
+            var sil = el('button', 'h-9 w-9 rounded-[10px] text-teal-50/70 hover:text-rose-200 hover:bg-rose-500/15 flex items-center justify-center');
+            sil.type = 'button'; sil.setAttribute('aria-label', 'Yedeği sil');
+            sil.innerHTML = '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+            sil.addEventListener('click', async function () {
+                if (!(await Klinik.onayla(y.zaman + ' tarihli yedek kalıcı olarak silinecek.'))) return;
+                try { var s = await Klinik.jsonGonder('/api/yedek/' + encodeURIComponent(y.ad), null, 'DELETE'); Klinik.bildir(s.mesaj); yedekleriCiz(s.yedekler); }
+                catch (h) { Klinik.bildir(h.message, 'hata'); }
+            });
+            aks.appendChild(sil);
+            satir.appendChild(aks);
+            kap.appendChild(satir);
+        });
+    }
+    yedekleriCiz({{ yedekler | tojson }});
+
+    $('yedekAl').addEventListener('click', async function () {
+        var b = this; b.disabled = true;
+        try { var s = await Klinik.jsonGonder('/api/yedek_al', {}); Klinik.bildir(s.mesaj); yedekleriCiz(s.yedekler); }
+        catch (h) { Klinik.bildir(h.message, 'hata'); }
+        b.disabled = false;
+    });
+
+    async function geriYukle(kaynak, ad) {
+        var tamam = await Klinik.onayla('Tüm hasta, randevu, muayene ve reçete verileri “' + ad + '” anındaki haline döndürülecek. Mevcut durum önce otomatik olarak yedeklenir. Devam edilsin mi?', 'Evet, geri yükle');
+        if (!tamam) return;
+        try {
+            var y;
+            if (kaynak.dosya) {
+                var fd = new FormData(); fd.append('dosya', kaynak.dosya);
+                y = await fetch('/api/yedek_geri_yukle', { method: 'POST', body: fd });
+            } else {
+                y = await fetch('/api/yedek_geri_yukle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(kaynak) });
+            }
+            var s = await y.json();
+            if (!y.ok) throw new Error(s.hata || 'Geri yükleme başarısız.');
+            Klinik.bildir(s.mesaj);
+            setTimeout(function () { location.href = s.yonlendir; }, 1200);
+        } catch (h) { Klinik.bildir(h.message, 'hata'); }
+    }
+    var dosyaAlan = $('yedekDosya'), birak = $('yedekBirak');
+    dosyaAlan.addEventListener('change', function () { if (dosyaAlan.files[0]) geriYukle({ dosya: dosyaAlan.files[0] }, dosyaAlan.files[0].name); dosyaAlan.value = ''; });
+    ['dragenter', 'dragover'].forEach(function (o) { birak.addEventListener(o, function (e) { e.preventDefault(); birak.classList.add('border-teal-300/60', 'bg-white/[0.04]'); }); });
+    ['dragleave', 'drop'].forEach(function (o) { birak.addEventListener(o, function (e) { e.preventDefault(); birak.classList.remove('border-teal-300/60', 'bg-white/[0.04]'); }); });
+    birak.addEventListener('drop', function (e) { var f = e.dataTransfer.files[0]; if (f) geriYukle({ dosya: f }, f.name); });
+})();
+</script>
+{% endblock %}

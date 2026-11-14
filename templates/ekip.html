@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% set aktif_sayfa = 'ekip' %}
+
+{% block baslik %}Ekip{% endblock %}
+{% block sahne_adi %}hastalar{% endblock %}
+{% block sahne_yukseklik %}h-[380px]{% endblock %}
+{% block sahne_zemin %}radial-gradient(800px 500px at 70% 40%, #2E1A7A, #120A2E 70%){% endblock %}
+
+{% block sahne_icerik %}
+<div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:bottom-10 max-w-[620px] flex flex-col gap-3.5">
+    <h1 class="giris font-sora text-5xl sm:text-[64px] font-medium leading-none tracking-[-0.035em] text-white" style="animation-delay: .1s">Ekip</h1>
+    <p class="giris text-base sm:text-[17px] text-violet-200" style="animation-delay: .25s">{{ uyeler | length }} kullanıcı · doktorlar muayene kaydı girebilir, sekreterler hasta ve randevuları yönetir.</p>
+</div>
+{% endblock %}
+
+{% block icerik %}
+<div class="flex flex-wrap gap-4 items-start">
+    <section class="giris cam flex-[2_1_520px] min-w-0 p-6 rounded-[28px] flex flex-col gap-2" style="animation-delay: .15s">
+        <h2 class="font-sora text-xl font-medium text-white mb-2">Kullanıcılar</h2>
+        {% for u in uyeler %}
+        <div class="satir flex flex-wrap items-center gap-4 px-4 py-3 rounded-2xl bg-white/[0.035] border border-white/[0.06]" style="animation-delay: {{ 0.06 * loop.index }}s">
+            <div class="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center text-sm font-bold text-white" style="background: {{ 'linear-gradient(135deg, #5EEAD4, #8B5CF6)' if u.doktor_mu else 'linear-gradient(135deg, #7DD3FC, #A78BFA)' }}">{{ u.bas_harfler }}</div>
+            <div class="flex-[1_1_200px] min-w-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-[15px] font-semibold text-white truncate">{{ u.gorunen_ad }}</span>
+                    {% if u.id == kullanici.id %}<span class="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold text-teal-100 bg-teal-400/20">Siz</span>{% endif %}
+                </div>
+                <div class="text-[13px] text-violet-300 truncate">{{ u.email }}</div>
+            </div>
+            <span class="inline-flex items-center h-7 px-3 rounded-full text-xs font-semibold {{ 'bg-violet-400/20 text-violet-100' if u.doktor_mu else 'bg-sky-400/15 text-sky-100' }}">{{ u.rol_adi }}</span>
+            <span class="text-xs text-violet-300 w-[130px]">Son giriş: {{ u.son_giris | kisa_tarih if u.son_giris else 'hiç' }}</span>
+            {% if u.id != kullanici.id %}
+            <button type="button" data-sil="{{ u.id }}" data-ad="{{ u.gorunen_ad }}" class="h-9 px-3 rounded-[10px] text-xs font-semibold text-rose-200 border border-rose-300/30 hover:bg-rose-500/15 transition-colors">Kaldır</button>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+
+    <section class="giris cam flex-[1_1_340px] min-w-0 p-6 rounded-[28px]" style="animation-delay: .3s">
+        <form id="kullaniciForm" class="flex flex-col gap-4" novalidate>
+            <h2 class="font-sora text-xl font-medium text-white">Ekibe kullanıcı ekle</h2>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Ad soyad
+                <input id="k_ad" type="text" class="alan" autocomplete="off" required></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">E-posta
+                <input id="k_email" type="email" class="alan" autocomplete="off" required></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Geçici şifre (en az 8 karakter)
+                <input id="k_sifre" type="text" class="alan" autocomplete="off" required></label>
+            <fieldset class="flex flex-col gap-2">
+                <legend class="mb-2 text-[13px] font-medium text-violet-100">Rol</legend>
+                <div class="grid grid-cols-2 gap-2">
+                    {% for anahtar, ad in roller.items() %}
+                    <label class="flex items-center gap-2.5 h-12 px-4 rounded-xl bg-white/5 border border-white/15 cursor-pointer has-[:checked]:bg-white has-[:checked]:text-[#1E0B4B] has-[:checked]:border-white text-sm font-semibold text-violet-50 transition-colors">
+                        <input type="radio" name="k_rol" value="{{ anahtar }}" class="accent-violet-600" {{ 'checked' if anahtar == 'sekreter' }}>{{ ad }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+            <button type="submit" class="h-12 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors disabled:opacity-60">Kullanıcıyı ekle</button>
+            <p class="text-xs leading-relaxed text-violet-300">Kullanıcı ilk girişinden sonra sağ üstteki menüden şifresini değiştirebilir.</p>
+        </form>
+    </section>
+</div>
+{% endblock %}
+
+{% block scriptler %}
+<script>
+(function () {
+    var form = document.getElementById('kullaniciForm');
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var d = form.querySelector('[type=submit]');
+        d.disabled = true;
+        try {
+            var s = await Klinik.jsonGonder('/api/kullanici_ekle', {
+                ad_soyad: document.getElementById('k_ad').value.trim(),
+                email: document.getElementById('k_email').value.trim(),
+                sifre: document.getElementById('k_sifre').value,
+                rol: (form.querySelector('[name=k_rol]:checked') || {}).value
+            });
+            Klinik.bildir(s.mesaj);
+            setTimeout(function () { location.reload(); }, 600);
+        } catch (h) { Klinik.bildir(h.message, 'hata'); d.disabled = false; }
+    });
+    document.querySelectorAll('[data-sil]').forEach(function (b) {
+        b.addEventListener('click', async function () {
+            if (!(await Klinik.onayla(b.dataset.ad + ' sistemden kaldırılacak. Bu kişi artık giriş yapamaz.', 'Evet, kaldır'))) return;
+            try {
+                var s = await Klinik.jsonGonder('/api/kullanici/' + b.dataset.sil, null, 'DELETE');
+                Klinik.bildir(s.mesaj);
+                setTimeout(function () { location.reload(); }, 600);
+            } catch (h) { Klinik.bildir(h.message, 'hata'); }
+        });
+    });
+})();
+</script>
+{% endblock %}

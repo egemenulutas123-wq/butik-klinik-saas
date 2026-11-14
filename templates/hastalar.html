@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% set aktif_sayfa = 'hastalar' %}
+
+{% block baslik %}Hastalar{% endblock %}
+{% block sahne_adi %}hastalar{% endblock %}
+{% block sahne_yukseklik %}h-[460px] md:h-[430px]{% endblock %}
+{% block sahne_zemin %}radial-gradient(800px 500px at 70% 40%, #2E1A7A, #120A2E 70%){% endblock %}
+{% block govde_zemin %}radial-gradient(900px 500px at 30% 480px, rgba(124,58,237,0.16), transparent 70%), #07051A{% endblock %}
+
+{% block sahne_icerik %}
+<div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:right-11 sm:bottom-10 max-w-[640px] flex flex-col gap-4">
+    <h1 class="giris font-sora text-5xl sm:text-[64px] font-medium leading-none tracking-[-0.035em] text-white" style="animation-delay: .1s">Hastalar</h1>
+    <p class="giris text-base sm:text-[17px] text-violet-200" style="animation-delay: .25s">{{ hastalar | length }} kayıtlı hasta · bu hafta {{ hafta_yeni }} yeni kayıt</p>
+    <div class="giris flex flex-wrap gap-2.5" style="animation-delay: .4s">
+        <label class="cam-acik relative overflow-hidden flex flex-1 basis-[300px] items-center gap-2.5 h-[52px] px-[18px] rounded-2xl">
+            <span aria-hidden="true" class="tara absolute inset-y-0 left-0 w-[30%] pointer-events-none" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)"></span>
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <span class="sr-only">Hasta ara</span>
+            <input id="hastaArama" type="search" autocomplete="off" placeholder="Ad soyad, TC kimlik veya telefon ile ara…" class="relative flex-1 min-w-0 bg-transparent border-0 outline-none text-[15px] text-white placeholder:text-violet-200/60">
+        </label>
+        <button type="button" data-hasta-modal-ac class="flex items-center h-[52px] px-6 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Yeni Hasta +</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block icerik %}
+<section class="giris cam p-5 sm:p-[22px] rounded-[28px] flex flex-col gap-4" style="animation-delay: .2s">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="Filtre" class="flex flex-wrap gap-2">
+            {% for anahtar, etiket in [('tum', 'Tümü'), ('kronik', 'Kronik hastalığı olan'), ('alerji', 'Alerjisi olan'), ('riza', 'Rızası bekleyen')] %}
+            <button type="button" data-filtre="{{ anahtar }}" aria-pressed="{{ 'true' if loop.first else 'false' }}"
+                    class="filtre-cip h-10 px-4 rounded-full text-[13px] font-semibold transition-all border">{{ etiket }}</button>
+            {% endfor %}
+        </div>
+        <span id="sonucSayisi" class="text-[13px] text-violet-300">{{ hastalar | length }} hasta gösteriliyor</span>
+    </div>
+
+    <div class="overflow-x-auto ince-kaydirma">
+        <div class="min-w-[980px] flex flex-col gap-1.5">
+            <div class="grid grid-cols-[2.2fr_1.3fr_1.1fr_0.9fr_1.5fr_1fr_130px] gap-3 px-4 py-2 text-xs font-semibold text-violet-400">
+                <span>Hasta</span><span>Telefon</span><span>Yaş / Cinsiyet</span><span>Kan grubu</span><span>Tanı</span><span>Kayıt</span><span class="text-right">İşlem</span>
+            </div>
+            {% for h in hastalar %}
+            <div class="hasta-satir satir grid grid-cols-[2.2fr_1.3fr_1.1fr_0.9fr_1.5fr_1fr_130px] gap-3 items-center px-4 py-3 rounded-2xl text-sm bg-white/[0.035] border border-white/[0.06]"
+                 style="animation-delay: {{ [0.06 * loop.index, 1.2] | min }}s"
+                 data-arama="{{ (h.ad_soyad ~ ' ' ~ (h.tc_kimlik or '') ~ ' ' ~ (h.telefon or '')) | lower }}"
+                 data-kronik="{{ '1' if h.kronik_liste else '0' }}" data-alerji="{{ '1' if h.alerjisi_var else '0' }}" data-riza="{{ '1' if h.kvkk_onay else '0' }}">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-[13px] font-bold {{ ['bg-teal-300/20 text-teal-50', 'bg-violet-400/25 text-violet-50', 'bg-pink-400/20 text-pink-50', 'bg-sky-300/20 text-sky-50'][loop.index0 % 4] }}">{{ h.bas_harfler }}</div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 font-semibold text-white">
+                            <span class="truncate">{{ h.ad_soyad }}</span>
+                            {% if h.alerjisi_var %}<span class="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold text-rose-100 bg-rose-500/25">Alerji</span>{% endif %}
+                            {% if not h.kvkk_onay %}<span class="shrink-0 inline-flex items-center h-5 px-2 rounded-full text-[11px] font-semibold text-amber-100 bg-amber-400/20" title="KVKK açık rızası kaydedilmemiş">Rıza bekliyor</span>{% endif %}
+                        </div>
+                        <div class="text-xs text-violet-300 mt-0.5 tabular-nums">TC {{ h.maskeli_tc }}</div>
+                    </div>
+                </div>
+                <span class="text-violet-100 tabular-nums">{{ h.telefon }}</span>
+                <span class="text-violet-100">{{ h.yas if h.yas is not none else '—' }}{% if h.cinsiyet %} · {{ h.cinsiyet }}{% endif %}</span>
+                <span>{% if h.kan_grubu %}<span class="inline-flex items-center h-[26px] px-2.5 rounded-lg text-xs font-bold text-rose-100 bg-rose-500/20 border border-rose-300/30">{{ h.kan_grubu }}</span>{% else %}<span class="text-violet-400">—</span>{% endif %}</span>
+                <span class="text-violet-100 truncate">{{ h.hastalik_tanisi or '—' }}</span>
+                <span class="text-violet-300 tabular-nums">{{ h.kayit_tarihi | kisa_tarih }}</span>
+                <span class="flex justify-end"><a href="{{ url_for('hasta_detay', hasta_id=h.id) }}" class="inline-flex items-center h-9 px-3.5 rounded-[10px] text-[13px] font-semibold text-[#1E0B4B] bg-white/95 hover:bg-white transition-colors">Profili aç</a></span>
+            </div>
+            {% endfor %}
+            <div id="bosSonuc" class="{{ '' if not hastalar else 'hidden' }} py-12 text-center">
+                <div class="text-base font-semibold text-white">{{ 'Henüz kayıtlı hasta yok' if not hastalar else 'Eşleşen hasta bulunamadı' }}</div>
+                <div class="mt-1.5 text-[13px] text-violet-300">{{ 'İlk hastayı “Yeni Hasta +” ile kaydedin.' if not hastalar else 'Arama ifadesini değiştirin veya yeni hasta kaydı oluşturun.' }}</div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scriptler %}
+<script>
+(function () {
+    var arama = document.getElementById('hastaArama');
+    var satirlar = Array.prototype.slice.call(document.querySelectorAll('.hasta-satir'));
+    var cipler = document.querySelectorAll('.filtre-cip');
+    var sayac = document.getElementById('sonucSayisi');
+    var bos = document.getElementById('bosSonuc');
+    var filtre = 'tum';
+
+    function cipleriBoya() {
+        cipler.forEach(function (c) {
+            var aktif = c.dataset.filtre === filtre;
+            c.setAttribute('aria-pressed', aktif ? 'true' : 'false');
+            c.className = 'filtre-cip h-10 px-4 rounded-full text-[13px] font-semibold transition-all border ' +
+                (aktif ? 'text-[#1E0B4B] bg-white border-white' : 'text-violet-100 bg-white/5 border-white/15 hover:bg-white/10');
+        });
+    }
+
+    function uygula() {
+        var q = (arama.value || '').toLocaleLowerCase('tr-TR').trim();
+        var gorunen = 0;
+        satirlar.forEach(function (s) {
+            var uygun = (!q || s.dataset.arama.toLocaleLowerCase('tr-TR').indexOf(q) !== -1) &&
+                (filtre === 'tum' || (filtre === 'kronik' && s.dataset.kronik === '1') || (filtre === 'alerji' && s.dataset.alerji === '1') || (filtre === 'riza' && s.dataset.riza === '0'));
+            s.style.display = uygun ? '' : 'none';
+            if (uygun) gorunen++;
+        });
+        sayac.textContent = gorunen + ' hasta gösteriliyor';
+        if (satirlar.length) bos.classList.toggle('hidden', gorunen > 0);
+    }
+
+    arama.addEventListener('input', uygula);
+    cipler.forEach(function (c) {
+        c.addEventListener('click', function () { filtre = c.dataset.filtre; cipleriBoya(); uygula(); });
+    });
+    cipleriBoya();
+})();
+</script>
+{% endblock %}

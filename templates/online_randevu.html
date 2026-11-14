@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>{{ 'Randevu durumu' if takip_kod else 'Online randevu' }} | {{ KLINIK_ADI }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { fontFamily: { sora: ['Sora', 'system-ui', 'sans-serif'], sans: ['Inter', 'system-ui', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/klinik.css') }}">
+</head>
+<body class="min-h-screen text-violet-50 antialiased">
+<div class="min-h-screen p-3 sm:p-4 flex flex-col gap-5" style="background: radial-gradient(900px 500px at 70% 420px, rgba(124,58,237,0.16), transparent 70%), #07051A">
+
+    <section class="sahne h-[400px] sm:h-[420px]" data-sahne="online" style="background: radial-gradient(800px 500px at 70% 45%, #2E1A78, #0E0A2A 70%)">
+        <canvas aria-hidden="true"></canvas>
+        <div class="sahne-ortu" style="background: linear-gradient(90deg, rgba(9,5,28,0.88) 0%, rgba(9,5,28,0.35) 45%, rgba(9,5,28,0) 66%), linear-gradient(0deg, rgba(7,5,26,0.8) 0%, rgba(7,5,26,0) 40%)"></div>
+        <header class="absolute top-4 left-4 right-4 sm:top-5 sm:left-6 sm:right-6 z-10 flex items-center justify-between gap-3">
+            <a href="{{ url_for('online_randevu') }}" class="flex items-center gap-2.5">
+                <span class="w-[34px] h-[34px] rounded-full" style="background: radial-gradient(circle at 32% 28%, #FFFFFF, #A78BFA 40%, #4C1D95 85%); box-shadow: 0 0 24px rgba(167,139,250,0.7)"></span>
+                <span class="font-sora text-[17px] font-semibold tracking-tight text-white">{{ KLINIK_ADI }}</span>
+            </a>
+            <span class="cam-acik inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-[13px] font-semibold">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Güvenli bağlantı</span>
+        </header>
+        <div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:bottom-10 max-w-[600px] flex flex-col gap-3.5">
+            <span class="giris cam-acik inline-flex self-start items-center gap-2 h-[30px] px-3 rounded-full text-xs font-semibold" style="animation-delay: .1s">
+                <span class="nabiz w-2 h-2 rounded-full bg-teal-300"></span>{{ 'Randevu takibi' if takip_kod else 'Yaklaşık 1 dakika sürer · üyelik gerekmez' }}
+            </span>
+            <h1 class="giris font-sora text-[42px] sm:text-[60px] font-medium leading-[1.02] tracking-[-0.035em] text-white" style="animation-delay: .2s">{{ 'Randevu durumunuz' if takip_kod else 'Randevunuzu online alın' }}</h1>
+            <p class="giris text-base sm:text-[17px] text-violet-100/90" style="animation-delay: .35s">{{ 'Randevu kodunuzla talebinizin durumunu görebilir, gerekirse iptal edebilirsiniz.' if takip_kod else 'Hizmeti ve size uygun boş saati seçin; klinik onayladığında size haber verilir.' }}</p>
+        </div>
+    </section>
+
+    <main class="w-full max-w-5xl mx-auto flex flex-col gap-4">
+    {% if takip_kod %}
+        <!-- Takip -->
+        <section class="giris cam-parlak rounded-[30px] p-6 sm:p-8" style="background: rgba(24,14,58,0.72); animation-delay: .2s">
+            {% if takip %}
+            {% set d = takip.durum %}
+            {% set stil = {'Bekliyor': ['text-amber-100 bg-amber-400/20 border-amber-300/40', 'Onay bekliyor', 'Talebiniz kliniğe ulaştı. Onaylandığında sizinle telefon veya WhatsApp ile iletişime geçilecek.'],
+                           'Onaylandı': ['text-teal-100 bg-teal-400/20 border-teal-300/40', 'Onaylandı', 'Randevunuz kesinleşti. Randevu saatinden birkaç dakika önce klinikte olmanız rica olunur.'],
+                           'Reddedildi': ['text-rose-100 bg-rose-500/20 border-rose-300/40', 'Onaylanamadı', 'Talebiniz bu kez onaylanamadı. Aşağıdan size uygun başka bir saat seçebilirsiniz.'],
+                           'İptal': ['text-violet-100 bg-white/10 border-white/20', 'İptal edildi', 'Bu randevu iptal edildi.']}[d] %}
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <div class="text-[13px] font-semibold text-violet-300">Randevu kodu</div>
+                    <div class="mt-1 font-sora text-3xl font-semibold tracking-[0.12em] text-white">{{ takip.kod }}</div>
+                </div>
+                <span class="inline-flex items-center gap-2 h-10 px-4 rounded-full border text-sm font-bold {{ stil[0] }}">
+                    <span class="w-2 h-2 rounded-full bg-current {{ 'nabiz' if d == 'Bekliyor' }}"></span>{{ stil[1] }}</span>
+            </div>
+            <p class="mt-4 text-[15px] leading-relaxed text-violet-100/90">{{ stil[2] }}</p>
+            {% if takip.yanit_notu %}
+            <div class="mt-3 px-4 py-3 rounded-2xl {{ 'bg-rose-500/10 border border-rose-300/25 text-rose-50' if d == 'Reddedildi' else 'bg-white/[0.05] border border-white/10 text-violet-50' }} text-sm"><strong class="font-semibold">Kliniğin notu:</strong> {{ takip.yanit_notu }}</div>
+            {% endif %}
+            <dl class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {% for etiket, deger in [('Tarih', takip_json.tarih_metin), ('Saat', takip.saat), ('Hizmet', takip.islem_turu)] %}
+                <div class="p-4 rounded-2xl bg-white/[0.05] border border-white/10">
+                    <dt class="text-xs font-semibold text-violet-300">{{ etiket }}</dt>
+                    <dd class="mt-1 font-sora text-lg font-medium text-white">{{ deger }}</dd>
+                </div>
+                {% endfor %}
+            </dl>
+            <div class="mt-6 flex flex-wrap gap-2.5">
+                {% if d in ('Bekliyor', 'Onaylandı') %}
+                <a href="{{ url_for('online_takip_ics', kod=takip.kod) }}" class="flex items-center gap-2 h-12 px-5 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">
+                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M12 14v4M10 16h4"/></svg>Takvimime ekle</a>
+                <button type="button" id="iptalDugme" class="h-12 px-5 rounded-2xl text-sm font-semibold text-rose-100 border border-rose-300/35 hover:bg-rose-500/15 transition-colors">Randevuyu iptal et</button>
+                {% endif %}
+                <a href="{{ url_for('online_randevu') }}" class="flex items-center h-12 px-5 rounded-2xl text-sm font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15 transition-colors">Yeni randevu al</a>
+            </div>
+            {% else %}
+            <div class="py-6 text-center">
+                <div class="font-sora text-2xl font-medium text-white">Randevu bulunamadı</div>
+                <p class="mt-2 text-sm text-violet-200">“{{ takip_kod }}” koduyla bir talep yok. Kodu kontrol edin veya kliniği arayın.</p>
+                <a href="{{ url_for('online_randevu') }}" class="mt-5 inline-flex items-center h-12 px-6 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Online randevu al</a>
+            </div>
+            {% endif %}
+        </section>
+    {% elif not ayarlar.acik %}
+        <section class="giris cam-parlak rounded-[30px] p-8 text-center" style="background: rgba(24,14,58,0.72); animation-delay: .2s">
+            <div class="font-sora text-2xl font-medium text-white">Online randevu şu anda kapalı</div>
+            <p class="mt-2 text-sm text-violet-200">Randevu için lütfen kliniğimizi telefonla arayın.</p>
+            {% if ayarlar.mesaj %}<p class="mt-4 text-sm text-violet-100/90">{{ ayarlar.mesaj }}</p>{% endif %}
+        </section>
+    {% else %}
+        <!-- Adım göstergesi -->
+        <nav aria-label="Randevu adımları" class="giris cam rounded-[22px] px-4 sm:px-6 py-4" style="animation-delay: .15s">
+            <ol id="adimlar" class="grid grid-cols-4 gap-2">
+                {% for etiket in ['Hizmet', 'Gün ve saat', 'Bilgileriniz', 'Tamam'] %}
+                <li data-adim-gosterge="{{ loop.index }}" class="flex flex-col sm:flex-row items-center gap-2 text-center sm:text-left">
+                    <span class="adim-no w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-[13px] font-bold transition-all duration-300">{{ loop.index }}</span>
+                    <span class="adim-ad text-[12px] sm:text-[13px] font-semibold transition-colors">{{ etiket }}</span>
+                </li>
+                {% endfor %}
+            </ol>
+            <div class="mt-3 h-1 rounded-full bg-white/[0.07] overflow-hidden"><div id="adimCubuk" class="h-full rounded-full transition-all duration-500" style="width: 25%; background: linear-gradient(90deg, #5EEAD4, #A78BFA)"></div></div>
+        </nav>
+
+        {% if ayarlar.mesaj %}
+        <div class="giris flex gap-3 px-5 py-4 rounded-2xl border border-teal-300/25 bg-teal-400/[0.07] text-sm text-teal-50" style="animation-delay: .2s">
+            <svg aria-hidden="true" class="shrink-0 mt-0.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/></svg>
+            <span>{{ ayarlar.mesaj }}</span>
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
+            <section class="giris cam-parlak min-w-0 rounded-[30px] p-5 sm:p-7 min-h-[420px]" style="background: rgba(24,14,58,0.72); animation-delay: .25s" aria-live="polite">
+
+                <!-- 1. Hizmet -->
+                <div data-adim="1" class="adim flex flex-col gap-4">
+                    <div>
+                        <h2 class="font-sora text-2xl font-medium text-white">Hangi hizmet için geliyorsunuz?</h2>
+                        <p class="mt-1 text-sm text-violet-200">Emin değilseniz “Genel Muayene”yi seçin.</p>
+                    </div>
+                    <div id="hizmetler" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+
+                <!-- 2. Gün ve saat -->
+                <div data-adim="2" class="adim hidden flex-col gap-5">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h2 class="font-sora text-2xl font-medium text-white">Size uygun zamanı seçin</h2>
+                            <p class="mt-1 text-sm text-violet-200">Her randevu yaklaşık 30 dakikadır.</p>
+                        </div>
+                        <button type="button" data-geri class="shrink-0 h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">← Geri</button>
+                    </div>
+                    <div class="relative">
+                        <div id="gunler" class="flex gap-2 overflow-x-auto ince-kaydirma pt-2 pb-2 snap-x" role="group" aria-label="Gün seçimi"></div>
+                    </div>
+                    <div id="saatBolum" class="flex flex-col gap-4"></div>
+                </div>
+
+                <!-- 3. Bilgiler -->
+                <form data-adim="3" id="bilgiForm" class="adim relative hidden flex-col gap-4" novalidate>
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h2 class="font-sora text-2xl font-medium text-white">Bilgileriniz</h2>
+                            <p class="mt-1 text-sm text-violet-200">Randevunuzu onaylamak için size bu numaradan ulaşacağız.</p>
+                        </div>
+                        <button type="button" data-geri class="shrink-0 h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">← Geri</button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Ad soyad *
+                            <input id="o_ad" type="text" autocomplete="name" required class="alan" placeholder="Adınız ve soyadınız"></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Cep telefonu *
+                            <input id="o_tel" type="tel" autocomplete="tel" inputmode="tel" required class="alan tabular-nums" placeholder="05xx xxx xx xx"></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">TC kimlik no <span class="font-normal text-violet-300">(isteğe bağlı)</span>
+                            <input id="o_tc" type="text" inputmode="numeric" maxlength="11" class="alan tabular-nums" placeholder="Daha önce geldiyseniz kaydınızı bulmamızı kolaylaştırır"></label>
+                        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Kısa not <span class="font-normal text-violet-300">(isteğe bağlı)</span>
+                            <input id="o_not" type="text" maxlength="500" class="alan" placeholder="Ör. 3 gündür boğaz ağrısı"></label>
+                    </div>
+                    <div class="absolute -left-[9999px]" aria-hidden="true"><label>Web siteniz<input id="o_web" type="text" tabindex="-1" autocomplete="off"></label></div>
+                    <label class="flex items-start gap-3 p-4 rounded-2xl border border-teal-300/25 bg-teal-400/[0.07] cursor-pointer">
+                        <input id="o_kvkk" type="checkbox" class="mt-0.5 w-5 h-5 shrink-0 accent-teal-400">
+                        <span class="text-[13px] leading-relaxed text-teal-50">
+                            <a href="{{ url_for('online_aydinlatma') }}" target="_blank" rel="noopener" class="font-semibold underline decoration-teal-300/60 underline-offset-2 text-teal-200 hover:text-white">Aydınlatma metnini</a>
+                            okudum; randevu oluşturulması ve sağlık hizmeti sunulması amacıyla kişisel ve sağlık verilerimin işlenmesine açık rıza veriyorum.</span>
+                    </label>
+                    <button type="submit" id="gonder" class="h-14 rounded-2xl text-[15px] font-bold text-[#042F2E] transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0" style="background: linear-gradient(180deg, #CCFBF1, #5EEAD4); box-shadow: 0 16px 34px -12px rgba(45,212,191,0.7)">Randevu talebini gönder</button>
+                </form>
+
+                <!-- 4. Tamam -->
+                <div data-adim="4" class="adim hidden flex-col items-center gap-5 py-6 text-center">
+                    <svg class="onay-pop" aria-hidden="true" width="96" height="96" viewBox="0 0 84 84"><circle cx="42" cy="42" r="40" fill="rgba(45,212,191,0.18)" stroke="#5EEAD4" stroke-width="2"/><path class="onay-tik" d="M27 43l10 10 20-22" fill="none" stroke="#CCFBF1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <div>
+                        <h2 class="font-sora text-3xl font-medium text-white">Talebiniz alındı</h2>
+                        <p id="tamamOzet" class="mt-2 text-[15px] text-violet-100/90 max-w-md"></p>
+                    </div>
+                    <div class="flex flex-col items-center gap-1.5 px-6 py-4 rounded-2xl bg-white/[0.06] border border-white/15">
+                        <span class="text-xs font-semibold text-violet-300">Randevu kodunuz</span>
+                        <button type="button" id="kodKopyala" class="font-sora text-[32px] font-semibold tracking-[0.14em] text-white hover:text-teal-200 transition-colors" title="Kopyala"></button>
+                        <span class="text-[11px] text-violet-300">Durumu görmek veya iptal etmek için saklayın</span>
+                    </div>
+                    <p class="text-sm text-teal-100/90 max-w-md">Klinik talebinizi onayladığında size telefon veya WhatsApp ile bilgi verilecektir.</p>
+                    <div class="flex flex-wrap justify-center gap-2.5">
+                        <a id="icsLink" href="#" class="flex items-center gap-2 h-12 px-5 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">Takvimime ekle</a>
+                        <a id="takipLink" href="#" class="flex items-center h-12 px-5 rounded-2xl text-sm font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15 transition-colors">Talebimi görüntüle</a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Özet -->
+            <aside class="giris cam rounded-[26px] p-5 flex flex-col gap-4 lg:sticky lg:top-4" style="animation-delay: .3s" aria-label="Seçimleriniz">
+                <h2 class="text-[13px] font-semibold text-violet-300">Randevu özeti</h2>
+                <dl class="flex flex-col gap-3 text-sm">
+                    <div class="flex items-center justify-between gap-3"><dt class="text-violet-300">Hizmet</dt><dd id="ozHizmet" class="font-semibold text-white text-right">—</dd></div>
+                    <div class="flex items-center justify-between gap-3"><dt class="text-violet-300">Gün</dt><dd id="ozGun" class="font-semibold text-white text-right">—</dd></div>
+                    <div class="flex items-center justify-between gap-3"><dt class="text-violet-300">Saat</dt><dd id="ozSaat" class="font-sora text-lg font-medium text-white">—</dd></div>
+                </dl>
+                <div class="h-px bg-white/10"></div>
+                <ul class="flex flex-col gap-2.5 text-[12px] text-violet-200">
+                    <li class="flex gap-2"><span class="text-teal-300">✓</span>Üyelik veya şifre gerekmez</li>
+                    <li class="flex gap-2"><span class="text-teal-300">✓</span>Klinik onayı sonrası kesinleşir</li>
+                    <li class="flex gap-2"><span class="text-teal-300">✓</span>Kodunuzla dilediğiniz zaman iptal edebilirsiniz</li>
+                </ul>
+            </aside>
+        </div>
+    {% endif %}
+        <footer class="py-6 text-center text-[12px] text-violet-300/70">
+            {{ KLINIK_ADI }} · Kişisel verileriniz 6698 sayılı KVKK kapsamında korunur ·
+            <a href="{{ url_for('online_aydinlatma') }}" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-white">Aydınlatma metni</a>
+        </footer>
+    </main>
+</div>
+
+<div id="bildirim" role="status" aria-live="polite">
+    <div class="flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-sm font-semibold" style="-webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px)"><span data-mesaj></span></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="{{ url_for('static', filename='js/klinik3d.js') }}"></script>
+<script>
+(function () {
+    'use strict';
+    function $(id) { return document.getElementById(id); }
+    function el(t, c, m) { var e = document.createElement(t); if (c) e.className = c; if (m !== undefined && m !== null) e.textContent = m; return e; }
+    var zaman;
+    function bildir(mesaj, tur) {
+        var k = $('bildirim');
+        k.firstElementChild.setAttribute('style', (tur === 'hata'
+            ? 'background: rgba(244,63,94,0.22); border-color: rgba(253,164,175,0.45); color: #FFE4E6;'
+            : 'background: rgba(45,212,191,0.2); border-color: rgba(94,234,212,0.45); color: #CCFBF1;') + ' -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);');
+        k.querySelector('[data-mesaj]').textContent = mesaj;
+        k.classList.add('gorunur');
+        clearTimeout(zaman);
+        zaman = setTimeout(function () { k.classList.remove('gorunur'); }, 3800);
+    }
+    async function gonderJson(url, veri) {
+        var y = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(veri || {}) });
+        var g = {};
+        try { g = await y.json(); } catch (e) { g = {}; }
+        if (!y.ok) throw new Error(g.hata || 'İşlem tamamlanamadı. Lütfen tekrar deneyin.');
+        return g;
+    }
+
+    {% if takip_kod %}
+    var iptal = $('iptalDugme');
+    if (iptal) iptal.addEventListener('click', async function () {
+        if (!window.confirm('Randevunuz iptal edilecek. Emin misiniz?')) return;
+        iptal.disabled = true;
+        try {
+            var s = await gonderJson('/api/online/talep/{{ takip_kod | urlencode }}/iptal');
+            bildir(s.mesaj);
+            setTimeout(function () { location.reload(); }, 900);
+        } catch (h) { bildir(h.message, 'hata'); iptal.disabled = false; }
+    });
+    {% elif ayarlar.acik %}
+    var s = { hizmet: null, gun: null, saat: null, adim: 1, gunler: [] };
+    var IKONLAR = {
+        'Genel Muayene': '<path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/>',
+        'Kontrol Muayenesi': '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+        'Kan Tahlili': '<path d="M12 2.7S6 9.5 6 14a6 6 0 0 0 12 0c0-4.5-6-11.3-6-11.3z"/>',
+        'Ultrason': '<circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>',
+        'Pansuman': '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="M10 10h.01M14 14h.01M12 12h.01"/>',
+        'Enjeksiyon': '<path d="m18 2 4 4M17 7l3-3M19 9 8.7 19.3a2.4 2.4 0 0 1-3.4 0l-.6-.6a2.4 2.4 0 0 1 0-3.4L15 5M9 11l4 4M5 19l-3 3"/>',
+        'EKG': '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+        'Konsültasyon': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
+    };
+
+    function adimGit(n, kaydirma) {
+        s.adim = n;
+        document.querySelectorAll('.adim').forEach(function (a) {
+            var aktif = Number(a.dataset.adim) === n;
+            a.classList.toggle('hidden', !aktif);
+            a.classList.toggle('flex', aktif);
+            if (aktif) { a.classList.remove('adim-gir'); void a.offsetWidth; a.classList.add('adim-gir'); }
+        });
+        document.querySelectorAll('[data-adim-gosterge]').forEach(function (g) {
+            var i = Number(g.dataset.adimGosterge);
+            var no = g.querySelector('.adim-no'), ad = g.querySelector('.adim-ad');
+            no.textContent = i < n ? '✓' : i;
+            no.className = 'adim-no w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-[13px] font-bold transition-all duration-300 ' +
+                (i < n ? 'bg-teal-300 text-[#042F2E]' : i === n ? 'bg-white text-[#1E0B4B] shadow-[0_0_0_5px_rgba(255,255,255,0.12)]' : 'bg-white/[0.07] text-violet-300');
+            ad.className = 'adim-ad text-[12px] sm:text-[13px] font-semibold transition-colors ' + (i <= n ? 'text-white' : 'text-violet-300/70');
+            if (i === n) g.setAttribute('aria-current', 'step'); else g.removeAttribute('aria-current');
+        });
+        $('adimCubuk').style.width = (n * 25) + '%';
+        if (kaydirma !== false && window.innerWidth < 1024) document.querySelector('[aria-label="Randevu adımları"]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    document.querySelectorAll('[data-geri]').forEach(function (b) { b.addEventListener('click', function () { adimGit(s.adim - 1); }); });
+
+    function ozetCiz() {
+        $('ozHizmet').textContent = s.hizmet || '—';
+        $('ozGun').textContent = s.gun ? s.gun.gun + ' ' + s.gun.ay + ' ' + s.gun.uzun : '—';
+        $('ozSaat').textContent = s.saat || '—';
+    }
+
+    function hizmetleriCiz(hizmetler) {
+        var kap = $('hizmetler');
+        kap.innerHTML = '';
+        hizmetler.forEach(function (h, n) {
+            var b = el('button', 'satir group flex items-center gap-4 p-4 rounded-[20px] text-left border transition-all hover:-translate-y-0.5 ' +
+                (s.hizmet === h.ad ? 'border-teal-300/70 bg-teal-400/[0.12]' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08]'));
+            b.type = 'button';
+            b.style.animationDelay = (n * 0.05) + 's';
+            var ikon = el('span', 'w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-[#1E0B4B] transition-transform group-hover:scale-105');
+            ikon.style.background = n % 2 ? 'linear-gradient(135deg, #EDE9FE, #A78BFA)' : 'linear-gradient(135deg, #CCFBF1, #5EEAD4)';
+            ikon.innerHTML = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (IKONLAR[h.ad] || IKONLAR['Konsültasyon']) + '</svg>';
+            b.appendChild(ikon);
+            var m = el('span', 'flex-1 min-w-0');
+            m.appendChild(el('span', 'block text-[15px] font-semibold text-white', h.ad));
+            m.appendChild(el('span', 'block text-[12px] text-violet-300', '≈ 30 dakika'));
+            b.appendChild(m);
+            if (h.ucret) b.appendChild(el('span', 'font-sora text-[15px] font-medium text-teal-100', h.ucret));
+            b.appendChild(el('span', 'text-violet-300 text-lg', '→'));
+            b.addEventListener('click', function () { s.hizmet = h.ad; ozetCiz(); hizmetleriCiz(hizmetler); adimGit(2); });
+            kap.appendChild(b);
+        });
+    }
+
+    function gunleriCiz() {
+        var kap = $('gunler');
+        kap.innerHTML = '';
+        s.gunler.forEach(function (g) {
+            var secili = s.gun && s.gun.iso === g.iso;
+            var kapali = g.kapali || g.bos === 0;
+            var b = el('button', 'snap-start shrink-0 w-[78px] flex flex-col items-center gap-0.5 py-3 rounded-[18px] border transition-all duration-300 ' +
+                (secili ? 'text-[#1E0B4B] border-white -translate-y-1 bg-white shadow-[0_14px_30px_-12px_rgba(255,255,255,0.6)]'
+                    : kapali ? 'text-violet-300/40 border-white/[0.06] bg-white/[0.02] cursor-not-allowed'
+                        : 'text-white border-white/15 bg-white/[0.05] hover:bg-white/10'));
+            b.type = 'button';
+            b.disabled = kapali;
+            b.setAttribute('aria-pressed', secili ? 'true' : 'false');
+            b.appendChild(el('span', 'text-[12px] font-medium opacity-85', g.kisa));
+            b.appendChild(el('span', 'font-sora text-[24px] font-semibold leading-tight', g.gun));
+            b.appendChild(el('span', 'text-[11px] opacity-80', g.ay));
+            b.appendChild(el('span', 'mt-1 text-[10px] font-bold ' + (secili ? 'text-teal-700' : kapali ? '' : 'text-teal-300'), g.kapali ? 'Kapalı' : g.bos === 0 ? 'Dolu' : g.bos + ' boş'));
+            b.addEventListener('click', function () { s.gun = g; s.saat = null; ozetCiz(); gunleriCiz(); saatleriGetir(); });
+            kap.appendChild(b);
+        });
+    }
+
+    async function saatleriGetir() {
+        var kap = $('saatBolum');
+        kap.innerHTML = '';
+        if (!s.gun) { kap.appendChild(el('p', 'text-sm text-violet-300', 'Önce bir gün seçin.')); return; }
+        kap.appendChild(el('p', 'text-sm text-violet-300', 'Saatler yükleniyor…'));
+        try {
+            var y = await fetch('/api/online/saatler?tarih=' + s.gun.iso);
+            var saatler = (await y.json()).saatler || [];
+            kap.innerHTML = '';
+            var gruplar = [['Sabah', function (x) { return x < '12:00'; }], ['Öğle', function (x) { return x >= '12:00' && x < '14:00'; }], ['Öğleden sonra', function (x) { return x >= '14:00'; }]];
+            var hicBos = true;
+            gruplar.forEach(function (gr) {
+                var liste = saatler.filter(function (x) { return gr[1](x.saat); });
+                if (!liste.length) return;
+                var bolum = el('div', 'flex flex-col gap-2');
+                bolum.appendChild(el('h3', 'text-[13px] font-semibold text-violet-200', gr[0]));
+                var izgara = el('div', 'grid grid-cols-3 sm:grid-cols-6 gap-2');
+                liste.forEach(function (x, n) {
+                    if (!x.dolu) hicBos = false;
+                    var b = el('button', 'satir h-12 rounded-xl text-[15px] font-semibold tabular-nums border transition-all ' +
+                        (x.dolu ? 'text-violet-300/35 border-dashed border-white/15 line-through cursor-not-allowed'
+                            : s.saat === x.saat ? 'text-[#042F2E] border-teal-300 bg-gradient-to-b from-teal-100 to-teal-300 shadow-[0_10px_24px_-8px_rgba(45,212,191,0.8)]'
+                                : 'text-white bg-white/[0.07] border-white/15 hover:-translate-y-0.5 hover:bg-white/15'), x.saat);
+                    b.type = 'button';
+                    b.disabled = x.dolu;
+                    b.style.animationDelay = (n * 0.025) + 's';
+                    b.setAttribute('aria-label', x.saat + (x.dolu ? ' dolu' : ''));
+                    b.addEventListener('click', function () { s.saat = x.saat; ozetCiz(); adimGit(3); setTimeout(function () { $('o_ad').focus(); }, 300); });
+                    izgara.appendChild(b);
+                });
+                bolum.appendChild(izgara);
+                kap.appendChild(bolum);
+            });
+            if (hicBos) {
+                kap.innerHTML = '';
+                kap.appendChild(el('p', 'text-sm text-amber-200', 'Bu günde boş saat kalmadı. Lütfen başka bir gün seçin.'));
+            }
+        } catch (e) { kap.innerHTML = ''; kap.appendChild(el('p', 'text-sm text-rose-200', 'Saatler yüklenemedi. Sayfayı yenileyin.')); }
+    }
+
+    // Telefonu yazarken biçimlendir: 0532 418 27 63
+    $('o_tel').addEventListener('input', function () {
+        var r = this.value.replace(/\D/g, '');
+        if (r.startsWith('90')) r = r.slice(2);
+        if (r && r[0] !== '0') r = '0' + r;
+        r = r.slice(0, 11);
+        var p = [r.slice(0, 4), r.slice(4, 7), r.slice(7, 9), r.slice(9, 11)].filter(Boolean);
+        this.value = p.join(' ');
+    });
+    $('o_tc').addEventListener('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 11); });
+
+    $('bilgiForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var ad = $('o_ad').value.trim(), tel = $('o_tel').value.replace(/\D/g, '');
+        if (ad.split(/\s+/).length < 2) { bildir('Lütfen adınızı ve soyadınızı yazın.', 'hata'); $('o_ad').focus(); return; }
+        if (!/^05\d{9}$/.test(tel)) { bildir('Lütfen 05 ile başlayan cep telefonunuzu yazın.', 'hata'); $('o_tel').focus(); return; }
+        if (!$('o_kvkk').checked) { bildir('Devam etmek için aydınlatma metnini onaylayın.', 'hata'); return; }
+        var b = $('gonder');
+        b.disabled = true;
+        b.textContent = 'Gönderiliyor…';
+        try {
+            var sonuc = await gonderJson('/api/online/talep', {
+                ad_soyad: ad, telefon: $('o_tel').value, tc_kimlik: $('o_tc').value, notlar: $('o_not').value,
+                islem_turu: s.hizmet, tarih: s.gun.iso, saat: s.saat, kvkk_onay: true, web_sitesi: $('o_web').value
+            });
+            $('kodKopyala').textContent = sonuc.kod;
+            $('tamamOzet').textContent = s.gun.gun + ' ' + s.gun.ay + ' ' + s.gun.uzun + ' saat ' + s.saat + ' · ' + s.hizmet + ' talebiniz kliniğe iletildi.';
+            $('icsLink').href = sonuc.takip + '/takvim.ics';
+            $('takipLink').href = sonuc.takip;
+            adimGit(4);
+        } catch (h) {
+            bildir(h.message, 'hata');
+            if (/doldu/.test(h.message)) { s.saat = null; ozetCiz(); adimGit(2); saatleriGetir(); }
+        }
+        b.disabled = false;
+        b.textContent = 'Randevu talebini gönder';
+    });
+
+    $('kodKopyala').addEventListener('click', async function () {
+        try { await navigator.clipboard.writeText(this.textContent); bildir('Kod kopyalandı.'); } catch (e) { /* desteklenmiyor */ }
+    });
+
+    (async function yukle() {
+        try {
+            var y = await fetch('/api/online/takvim');
+            var v = await y.json();
+            s.gunler = v.gunler || [];
+            hizmetleriCiz(v.hizmetler || []);
+            var ilk = s.gunler.find(function (g) { return !g.kapali && g.bos > 0; });
+            if (ilk) s.gun = ilk;
+            gunleriCiz();
+            saatleriGetir();
+            ozetCiz();
+        } catch (e) { bildir('Takvim yüklenemedi. Sayfayı yenileyin.', 'hata'); }
+    })();
+    adimGit(1, false);
+    {% endif %}
+})();
+</script>
+</body>
+</html>

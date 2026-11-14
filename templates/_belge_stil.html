@@ -1,0 +1,39 @@
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #E9E6F5; font-family: Inter, system-ui, sans-serif; color: #1A1530; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .arac { position: sticky; top: 0; z-index: 5; display: flex; justify-content: center; gap: 10px; padding: 14px; background: rgba(20,12,48,0.92); }
+        .arac button, .arac a { height: 44px; padding: 0 20px; border-radius: 12px; border: 0; font: 600 14px Inter, sans-serif; cursor: pointer; display: inline-flex; align-items: center; text-decoration: none; }
+        .arac .ana { background: #fff; color: #1E0B4B; }
+        .arac .ikinci { background: rgba(255,255,255,0.1); color: #fff; }
+        .sayfa { margin: 24px auto; background: #fff; border-radius: 6px; box-shadow: 0 24px 60px -24px rgba(30,11,75,0.45); display: flex; flex-direction: column; }
+        .ust { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid #1E0B4B; }
+        .marka { display: flex; align-items: center; gap: 10px; }
+        .logo { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #fff, #A78BFA 40%, #4C1D95 85%); }
+        .klinik { font: 600 16px Sora, sans-serif; letter-spacing: -0.01em; }
+        .klinik-alt { font-size: 10px; color: #6B6585; margin-top: 2px; }
+        .baslik { text-align: right; }
+        .baslik h1 { margin: 0; font: 600 18px Sora, sans-serif; letter-spacing: 0.08em; color: #1E0B4B; }
+        .baslik div { font-size: 10px; color: #6B6585; margin-top: 3px; font-variant-numeric: tabular-nums; }
+        .bilgi-izgara { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #F5F3FC; font-size: 11px; }
+        .bilgi-izgara span { color: #6B6585; }
+        .bilgi-izgara strong { font-weight: 600; color: #1A1530; }
+        table { width: 100%; border-collapse: collapse; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+        th { text-align: left; font-weight: 600; color: #6B6585; padding: 7px 6px; border-bottom: 1.5px solid #1E0B4B; }
+        td { padding: 6px; border-bottom: 1px solid #ECE9F6; vertical-align: top; }
+        .sag { text-align: right; }
+        .iptal td { color: #A8A3BC; text-decoration: line-through; }
+        .iptal td.neden { text-decoration: none; font-style: italic; }
+        .dip { margin-top: auto; padding-top: 16px; font-size: 9px; color: #8A85A0; line-height: 1.5; }
+        .imza { text-align: center; min-width: 150px; }
+        .imza .cizgi { height: 34px; border-bottom: 1px solid #1A1530; }
+        .imza div { font-size: 11px; margin-top: 4px; font-weight: 600; }
+        .imza span { font-size: 9px; color: #6B6585; }
+        @media print {
+            body { background: #fff; }
+            .arac { display: none; }
+            .sayfa { margin: 0; width: auto !important; min-height: auto !important; padding: 0 !important; box-shadow: none; border-radius: 0; }
+        }
+    </style>

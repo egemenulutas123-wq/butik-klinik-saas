@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gün sonu raporu · {{ gun | kisa_tarih }}</title>
+    {% include '_belge_stil.html' %}
+    <style>
+        @page { size: A4; margin: 14mm; }
+        .sayfa { width: 210mm; min-height: 297mm; padding: 16mm 15mm; }
+        .kutular { margin-top: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .kutular div { padding: 10px 12px; border-radius: 10px; background: #F5F3FC; }
+        .kutular .vurgu { background: #1E0B4B; color: #fff; }
+        .kutular span { display: block; font-size: 10px; opacity: .75; }
+        .kutular strong { display: block; margin-top: 3px; font: 600 17px Sora, sans-serif; font-variant-numeric: tabular-nums; }
+        h2 { margin: 18px 0 6px; font: 600 13px Sora, sans-serif; }
+        .imzalar { margin-top: 36px; display: flex; justify-content: space-between; gap: 40px; }
+    </style>
+</head>
+<body>
+    <div class="arac">
+        <button type="button" class="ana" onclick="window.print()">Yazdır / PDF olarak kaydet</button>
+        <button type="button" class="ikinci" onclick="window.close()">Kapat</button>
+    </div>
+    <main class="sayfa">
+        <header class="ust">
+            <div class="marka">
+                <div class="logo" aria-hidden="true"></div>
+                <div>
+                    <div class="klinik">{{ KLINIK_ADI }}</div>
+                    <div class="klinik-alt">Klinik.SaaS · Bütünleşik Klinik Yönetimi</div>
+                </div>
+            </div>
+            <div class="baslik">
+                <h1>GÜN SONU RAPORU</h1>
+                <div>{{ gun | tr_tarih }} · {{ gun_adi }}</div>
+                <div>Oluşturma: {{ bugun | kisa_tarih }}</div>
+            </div>
+        </header>
+
+        <div class="kutular">
+            <div class="vurgu"><span>Net kasa (tahsilat − iade)</span><strong>{{ ozet.net | tl }}</strong></div>
+            {% for y in yontemler %}<div><span>{{ y }}</span><strong>{{ ozet.yontem[y] | tl }}</strong></div>{% endfor %}
+        </div>
+        <div class="kutular">
+            <div><span>Tahsilat ({{ ozet.adet }} işlem)</span><strong>{{ ozet.tahsilat | tl }}</strong></div>
+            <div><span>İade</span><strong>{{ ozet.iade | tl }}</strong></div>
+            <div><span>Verilen hizmet</span><strong>{{ ozet.ucret | tl }}</strong></div>
+            <div><span>İndirim</span><strong>{{ ozet.indirim | tl }}</strong></div>
+        </div>
+
+        <h2>Günün hareketleri</h2>
+        <table>
+            <thead><tr><th>Saat</th><th>Belge</th><th>Hasta</th><th>İşlem</th><th>Yöntem</th><th>Açıklama</th><th>Kaydeden</th><th class="sag">Tutar</th></tr></thead>
+            <tbody>
+            {% for h in hareketler %}
+            <tr class="{{ 'iptal' if h.iptal else '' }}">
+                <td>{{ h.tarih.strftime('%H:%M') }}</td><td>{{ h.belge_no }}</td><td>{{ h.hasta.ad_soyad }}</td>
+                <td>{{ h.tur_adi }}</td><td>{{ h.yontem or '' }}</td><td>{{ h.aciklama or '' }}</td>
+                <td>{{ h.kullanici.gorunen_ad if h.kullanici else '' }}</td><td class="sag">{{ h.tutar | tl }}</td>
+            </tr>
+            {% if h.iptal %}<tr class="iptal"><td></td><td class="neden" colspan="7">İptal: {{ h.iptal_nedeni }}{% if h.iptal_eden %} · {{ h.iptal_eden.gorunen_ad }}{% endif %}</td></tr>{% endif %}
+            {% else %}
+            <tr><td colspan="8" style="text-align:center; padding:24px; color:#6B6585">Bu gün için kasa hareketi yok.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="imzalar">
+            <div class="imza"><div class="cizgi"></div><div>Teslim eden</div><span>Ad soyad / imza</span></div>
+            <div class="imza"><div class="cizgi"></div><div>Teslim alan</div><span>Ad soyad / imza</span></div>
+        </div>
+        <div class="dip">Bu rapor {{ KLINIK_ADI }} kasa kayıtlarından otomatik oluşturulmuştur; mali belge yerine geçmez. İptal edilen kayıtlar toplamlara dahil değildir.</div>
+    </main>
+</body>
+</html>

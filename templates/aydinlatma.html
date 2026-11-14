@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KVKK Aydınlatma Metni ve Açık Rıza Beyanı · {{ KLINIK_ADI }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @page { size: A4; margin: 16mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #E9E6F5; font-family: Inter, system-ui, sans-serif; color: #1A1530; line-height: 1.55; }
+        .arac { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 12px 16px; background: rgba(20,12,48,0.94); color: #E9E2FF; font-size: 12px; }
+        .arac button { height: 42px; padding: 0 18px; border-radius: 12px; border: 0; font: 600 14px Inter, sans-serif; cursor: pointer; background: #fff; color: #1E0B4B; }
+        .arac .ikinci { background: rgba(255,255,255,0.1); color: #fff; }
+        .sayfa { max-width: 210mm; margin: 24px auto; padding: 18mm 18mm; background: #fff; border-radius: 6px; box-shadow: 0 24px 60px -24px rgba(30,11,75,0.45); }
+        h1 { margin: 0; font: 600 20px Sora, sans-serif; color: #1E0B4B; }
+        .alt-baslik { margin-top: 4px; font-size: 12px; color: #6B6585; }
+        h2 { margin: 18px 0 6px; font: 600 13px Sora, sans-serif; color: #1E0B4B; }
+        p, li { font-size: 12px; }
+        ul { margin: 4px 0; padding-left: 18px; }
+        .ozel { margin-top: 22px; padding: 14px 16px; border: 1.5px solid #1E0B4B; border-radius: 10px; }
+        .imzalar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 18px; font-size: 11px; color: #6B6585; }
+        .imzalar div { border-top: 1px solid #1A1530; padding-top: 4px; }
+        .doldur { display: inline-block; min-width: 160px; border-bottom: 1px dotted #6B6585; font-weight: 600; color: #1A1530; }
+        @media print { body { background: #fff; } .arac { display: none; } .sayfa { margin: 0; padding: 0; box-shadow: none; max-width: none; } }
+    </style>
+</head>
+<body>
+    <div class="arac">
+        {% if not herkese_acik %}<span>Bu metin bir şablondur; kliniğinize uyarlayıp bir hukuk danışmanına kontrol ettirmeniz önerilir.</span>{% endif %}
+        <button type="button" onclick="window.print()">Yazdır</button>
+        <button type="button" class="ikinci" onclick="window.close()">Kapat</button>
+    </div>
+
+    <main class="sayfa">
+        <h1>Kişisel Verilerin Korunması Aydınlatma Metni</h1>
+        <div class="alt-baslik">6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) 10. madde kapsamında · {{ KLINIK_ADI }}</div>
+
+        <h2>1. Veri sorumlusu</h2>
+        <p>Kişisel verileriniz, veri sorumlusu sıfatıyla <strong>{{ KLINIK_ADI }}</strong> (“Klinik”) tarafından aşağıda açıklanan kapsamda işlenmektedir.</p>
+
+        <h2>2. İşlenen kişisel verileriniz</h2>
+        <ul>
+            <li><strong>Kimlik ve iletişim:</strong> ad soyad, T.C. kimlik numarası, doğum tarihi, cinsiyet, telefon.</li>
+            <li><strong>Özel nitelikli sağlık verileri:</strong> kan grubu, tanılar, kronik hastalıklar, geçmiş ameliyatlar, alerjiler, şikayetler, muayene bulguları, tansiyon/nabız/şeker gibi ölçümler, reçeteler.</li>
+            <li><strong>Randevu ve işlem bilgileri:</strong> randevu tarih ve saatleri, işlem türleri, sistem üzerinde yapılan işlemlere ait kayıtlar.</li>
+        </ul>
+
+        <h2>3. İşleme amaçları</h2>
+        <ul>
+            <li>Tıbbi teşhis, tedavi ve bakım hizmetlerinin yürütülmesi,</li>
+            <li>Randevu planlaması ve hasta ile iletişim,</li>
+            <li>Reçete düzenlenmesi ve ilaç güvenliğinin (alerji ve etkileşim kontrolü) sağlanması,</li>
+            <li>Mevzuattan doğan kayıt tutma ve bilgi verme yükümlülüklerinin yerine getirilmesi,</li>
+            <li>Bilgi güvenliğinin sağlanması ve yetkisiz erişimin önlenmesi.</li>
+        </ul>
+
+        <h2>4. Hukuki sebepler</h2>
+        <p>Sağlık verileriniz KVKK’nın 6. maddesi kapsamında; tıbbi teşhis, tedavi ve bakım hizmetlerinin yürütülmesi amacıyla sır saklama yükümlülüğü altındaki kişilerce ve/veya açık rızanıza dayanılarak işlenir. Kimlik ve iletişim verileriniz KVKK’nın 5. maddesinde yer alan sözleşmenin ifası, hukuki yükümlülük ve meşru menfaat sebeplerine dayanılarak işlenir.</p>
+
+        <h2>5. Aktarım</h2>
+        <p>Verileriniz, yalnızca hukuken yetkili kamu kurum ve kuruluşlarına, mevzuatın gerektirdiği hallerde ve amaçla sınırlı olarak aktarılabilir. Yurt dışına aktarım yapılmaz.</p>
+
+        <h2>6. Toplama yöntemi ve saklama</h2>
+        <p>Verileriniz başvurunuz sırasında sözlü/yazılı olarak ve muayene sürecinde elektronik ortamda toplanır. Sağlık mevzuatında öngörülen süreler boyunca, erişimi yetkilendirilmiş personelle sınırlı ve tüm erişimleri kayıt altına alınan bir sistemde saklanır; süre sonunda silinir veya anonim hale getirilir.</p>
+
+        <h2>7. Haklarınız (KVKK m. 11)</h2>
+        <p>Kişisel verilerinizin işlenip işlenmediğini öğrenme, işlenmişse bilgi talep etme, işlenme amacını ve amacına uygun kullanılıp kullanılmadığını öğrenme, aktarıldığı üçüncü kişileri bilme, eksik veya yanlış işlenmişse düzeltilmesini, şartları oluştuğunda silinmesini veya yok edilmesini isteme, otomatik sistemlerle analiz sonucu aleyhinize bir sonuç çıkmasına itiraz etme ve kanuna aykırı işleme nedeniyle uğradığınız zararın giderilmesini talep etme haklarına sahipsiniz. Taleplerinizi Klinik’e yazılı olarak iletebilirsiniz.</p>
+
+        <section class="ozel">
+            <h2 style="margin-top: 0">Açık Rıza Beyanı</h2>
+            <p>Yukarıdaki aydınlatma metnini okudum ve anladım. Kişisel verilerimin ve özel nitelikli sağlık verilerimin belirtilen amaçlarla işlenmesine özgür irademle açık rıza veriyorum. Bu rızamı dilediğim zaman geri alabileceğimi biliyorum.</p>
+            <p>Hasta adı soyadı: <span class="doldur">{{ hasta.ad_soyad if hasta else '' }}</span>
+               &nbsp; T.C. kimlik no: <span class="doldur">{{ hasta.tc_kimlik if hasta and hasta.tc_kimlik else '' }}</span></p>
+            <div class="imzalar">
+                <div>Tarih</div>
+                <div>Hasta / yasal temsilci imzası</div>
+                <div>Bilgilendiren personel</div>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

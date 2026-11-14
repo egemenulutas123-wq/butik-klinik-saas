@@ -1,0 +1,656 @@
+{% extends 'base.html' %}
+{% set aktif_sayfa = 'profil' %}
+{% set doktor = kullanici and kullanici.doktor_mu %}
+
+{% macro vital_alanlari(onek, kompakt=False) %}
+<div class="grid grid-cols-2 {{ 'sm:grid-cols-4' if kompakt else 'sm:grid-cols-3' }} gap-3">
+    <div class="col-span-2 {{ '' if kompakt else 'sm:col-span-1' }} flex flex-col gap-1.5">
+        <span class="text-[13px] font-medium text-violet-100">Tansiyon <span class="text-violet-300 font-normal">mmHg</span></span>
+        <div class="flex items-center gap-2">
+            <label class="sr-only" for="{{ onek }}sistolik">Büyük tansiyon</label>
+            <input id="{{ onek }}sistolik" data-vital="sistolik" type="number" inputmode="numeric" min="50" max="260" placeholder="120" class="alan text-center">
+            <span class="text-violet-300 text-lg">/</span>
+            <label class="sr-only" for="{{ onek }}diastolik">Küçük tansiyon</label>
+            <input id="{{ onek }}diastolik" data-vital="diastolik" type="number" inputmode="numeric" min="30" max="160" placeholder="80" class="alan text-center">
+        </div>
+        <span data-ipucu="tansiyon" class="text-[11px] font-semibold h-4"></span>
+    </div>
+    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Nabız <span class="sr-only">atım/dk</span>
+        <input id="{{ onek }}nabiz" data-vital="nabiz" type="number" inputmode="numeric" min="25" max="250" placeholder="72 /dk" class="alan">
+        <span data-ipucu="nabiz" class="text-[11px] font-semibold h-4"></span></label>
+    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Ateş °C
+        <input id="{{ onek }}ates" data-vital="ates" type="number" step="0.1" inputmode="decimal" min="33" max="43" placeholder="36,6" class="alan">
+        <span data-ipucu="ates" class="text-[11px] font-semibold h-4"></span></label>
+    <div class="flex flex-col gap-1.5">
+        <span class="text-[13px] font-medium text-violet-100">Kan şekeri <span class="text-violet-300 font-normal">mg/dL</span></span>
+        <div class="flex gap-1.5">
+            <label class="sr-only" for="{{ onek }}seker">Kan şekeri</label>
+            <input id="{{ onek }}seker" data-vital="seker" type="number" inputmode="numeric" min="20" max="700" placeholder="95" class="alan min-w-0">
+            <div role="group" aria-label="Ölçüm zamanı" class="flex shrink-0 rounded-[14px] p-1 bg-white/5 border border-white/10">
+                <button type="button" data-seker-tok="0" aria-pressed="true" class="seker-tur h-10 px-2.5 rounded-[10px] text-[11px] font-semibold">Açlık</button>
+                <button type="button" data-seker-tok="1" aria-pressed="false" class="seker-tur h-10 px-2.5 rounded-[10px] text-[11px] font-semibold">Tok</button>
+            </div>
+        </div>
+        <span data-ipucu="seker" class="text-[11px] font-semibold h-4"></span>
+    </div>
+    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">SpO₂ %
+        <input id="{{ onek }}spo2" data-vital="spo2" type="number" inputmode="numeric" min="50" max="100" placeholder="98" class="alan">
+        <span data-ipucu="spo2" class="text-[11px] font-semibold h-4"></span></label>
+    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Kilo kg
+        <input id="{{ onek }}kilo" data-vital="kilo" type="number" step="0.1" inputmode="decimal" min="1" max="350" placeholder="70" class="alan">
+        <span data-ipucu="vki" class="text-[11px] font-semibold h-4"></span></label>
+    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Boy cm
+        <input id="{{ onek }}boy" data-vital="boy" type="number" inputmode="numeric" min="40" max="250" placeholder="170" class="alan">
+        <span class="h-4"></span></label>
+</div>
+{% endmacro %}
+
+{% block baslik %}{{ hasta.ad_soyad }}{% endblock %}
+{% block sahne_adi %}profil{% endblock %}
+{% block sahne_yukseklik %}h-[660px] md:h-[560px]{% endblock %}
+{% block sahne_zemin %}radial-gradient(800px 500px at 70% 45%, #4A1650, #120A2E 70%){% endblock %}
+{% block govde_zemin %}radial-gradient(900px 500px at 70% 520px, rgba(225,29,72,0.12), transparent 70%), #07051A{% endblock %}
+
+{% block ust_aksiyonlar %}
+<a href="{{ url_for('randevular_sayfasi', hasta_id=hasta.id) }}" class="cam-acik hidden sm:flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold text-white hover:bg-white/20 transition-colors">Randevu Oluştur</a>
+{% endblock %}
+
+{% block sahne_icerik %}
+<div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:bottom-10 max-w-[720px] flex flex-col gap-4">
+    <a href="{{ url_for('hastalar_listesi') }}" class="giris self-start flex items-center min-h-[32px] text-[13px] font-medium text-violet-200 hover:text-white transition-colors" style="animation-delay: .05s">← Hastalar</a>
+    <div class="giris flex flex-wrap items-center gap-3" style="animation-delay: .15s">
+        <span class="cam-acik inline-flex items-center gap-2 h-[30px] px-3 rounded-full text-xs font-semibold"><span class="atis w-2 h-2 rounded-full bg-rose-400"></span>Hasta no #{{ '%05d' | format(hasta.id) }}</span>
+        <span class="text-[13px] text-violet-200 tabular-nums">TC {{ hasta.maskeli_tc }}</span>
+        {% if hasta.kvkk_onay %}
+        <span class="inline-flex items-center gap-1.5 h-[30px] px-3 rounded-full text-xs font-semibold text-teal-100 bg-teal-400/15 border border-teal-300/30" title="Açık rıza kaydı">
+            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            KVKK rızası · {{ hasta.kvkk_onay_tarihi | kisa_tarih }}</span>
+        {% else %}
+        <button type="button" data-kvkk-ac class="inline-flex items-center gap-1.5 h-[30px] px-3 rounded-full text-xs font-bold text-amber-100 bg-amber-400/20 border border-amber-300/40 hover:bg-amber-400/30 transition-colors">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-300 nabiz"></span>KVKK rızası bekliyor · Kaydet</button>
+        {% endif %}
+    </div>
+    <h1 class="giris font-sora text-5xl sm:text-[68px] font-medium leading-none tracking-[-0.035em] text-white" style="animation-delay: .25s">{{ hasta.ad_soyad }}</h1>
+    <div class="giris flex flex-wrap gap-2" style="animation-delay: .4s">
+        {% if hasta.yas is not none or hasta.cinsiyet %}
+        <span class="cam-acik inline-flex items-center h-[34px] px-3.5 rounded-xl text-[13px] font-semibold">{% if hasta.yas is not none %}{{ hasta.yas }} yaş{% endif %}{% if hasta.yas is not none and hasta.cinsiyet %} · {% endif %}{{ hasta.cinsiyet or '' }}</span>
+        {% endif %}
+        {% if hasta.kan_grubu %}<span class="inline-flex items-center h-[34px] px-3.5 rounded-xl text-[13px] font-bold text-rose-100 bg-rose-500/25 border border-rose-300/40">{{ hasta.kan_grubu }}</span>{% endif %}
+        {% if hasta.hastalik_tanisi %}<span class="cam-acik inline-flex items-center h-[34px] px-3.5 rounded-xl text-[13px] font-semibold">{{ hasta.hastalik_tanisi }}</span>{% endif %}
+    </div>
+    <svg class="giris max-w-full" style="animation-delay: .5s" aria-hidden="true" width="420" height="44" viewBox="0 0 420 56" fill="none">
+        <path d="M0 30 H110 L122 30 L130 10 L140 50 L150 4 L160 44 L168 30 H250 L262 30 L270 12 L280 48 L290 6 L300 42 L308 30 H420" stroke="rgba(255,255,255,0.14)" stroke-width="2" stroke-linejoin="round"/>
+        <path class="ekg" pathLength="1000" d="M0 30 H110 L122 30 L130 10 L140 50 L150 4 L160 44 L168 30 H250 L262 30 L270 12 L280 48 L290 6 L300 42 L308 30 H420" stroke="#FDA4AF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="220 780" style="filter: drop-shadow(0 0 6px #FB7185)"/>
+    </svg>
+    <div class="giris flex flex-wrap items-center gap-2.5" style="animation-delay: .55s">
+        {% if doktor %}
+        <button type="button" id="muayeneAc" class="flex items-center gap-2 h-11 px-5 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Muayene</button>
+        <button type="button" id="receteAc" class="flex items-center gap-2 h-11 px-5 rounded-xl text-sm font-bold text-[#3B0A1E] transition-transform hover:-translate-y-0.5" style="background: linear-gradient(180deg, #FFE4E6, #FDA4AF); box-shadow: 0 12px 28px -12px rgba(251,113,133,0.8)">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>Reçete yaz</button>
+        {% endif %}
+        <button type="button" id="vitalAc" class="cam-acik flex items-center gap-2 h-11 px-4 rounded-xl text-sm font-semibold text-white hover:bg-white/20 transition-colors">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Ölçüm ekle</button>
+        <button type="button" id="hastaDuzenle" class="cam-acik flex items-center h-11 px-4 rounded-xl text-sm font-semibold text-white hover:bg-white/20 transition-colors">Düzenle</button>
+        <div class="relative">
+            <button type="button" id="dahaFazla" aria-haspopup="true" aria-expanded="false" aria-label="Diğer işlemler" class="cam-acik w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+            </button>
+            <div id="dahaMenu" class="hidden absolute left-0 bottom-14 z-30 w-64 p-1.5 rounded-2xl border border-white/15" style="background: rgba(20,12,48,0.96); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px)">
+                <a href="{{ url_for('kvkk_aydinlatma', hasta=hasta.id) }}" target="_blank" rel="noopener" class="block px-3 py-2.5 rounded-xl text-sm font-medium text-white hover:bg-white/10">Aydınlatma metnini yazdır</a>
+                {% if hasta.kvkk_onay %}
+                <button type="button" data-kvkk-geri class="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-amber-100 hover:bg-amber-400/10">Açık rızanın geri çekildiğini kaydet</button>
+                {% endif %}
+                {% if doktor %}
+                <a href="{{ url_for('hasta_veri_indir', hasta_id=hasta.id) }}" class="block px-3 py-2.5 rounded-xl text-sm font-medium text-white hover:bg-white/10">Tüm verilerini indir (KVKK m.11)</a>
+                <div class="my-1 h-px bg-white/10"></div>
+                <button type="button" id="hastaSil" class="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-rose-200 hover:bg-rose-500/15">Hastayı sil</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if hasta.alerjisi_var %}
+<div role="alert" class="giris uyari hidden lg:flex absolute right-7 bottom-7 w-[300px] gap-3.5 p-[18px] rounded-[22px] border border-rose-300/40" style="background: rgba(244,63,94,0.16); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); animation-delay: .6s">
+    <svg aria-hidden="true" class="shrink-0" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FDA4AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <div>
+        <div class="text-sm font-bold text-rose-50">Alerji uyarısı</div>
+        <div class="mt-1 text-[13px] leading-relaxed text-rose-200">{{ hasta.alerji_durumu }}. Reçete yazarken sistem bu alerjiyi otomatik kontrol eder.</div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block icerik %}
+{% set durum_renk = {'Tamamlandı': ['bg-white/10 text-violet-50', '#A78BFA'], 'Onaylandı': ['bg-teal-400/20 text-teal-200', '#5EEAD4'], 'Bekliyor': ['bg-amber-400/20 text-amber-200', '#FBBF24'], 'İptal': ['bg-rose-500/20 text-rose-200', '#FB7185']} %}
+
+{% if hasta.alerjisi_var %}
+<div role="alert" class="lg:hidden flex gap-3 p-4 rounded-2xl border border-rose-300/40 text-[13px] text-rose-100" style="background: rgba(244,63,94,0.14)">
+    <strong class="font-bold">Alerji:</strong> {{ hasta.alerji_durumu }}
+</div>
+{% endif %}
+
+<div class="flex flex-wrap gap-4 items-start">
+    <div class="flex-[2_1_560px] min-w-0 flex flex-col gap-4">
+
+        <!-- Vital bulgular -->
+        <section class="giris cam p-6 rounded-[26px] flex flex-col gap-5" style="animation-delay: .05s" aria-labelledby="vitalBaslik">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h2 id="vitalBaslik" class="font-sora text-xl font-medium text-white">Vital bulgular</h2>
+                    <p id="vitalAlt" class="mt-0.5 text-[13px] text-violet-300"></p>
+                </div>
+                <div id="vitalSekmeler" role="tablist" aria-label="Ölçüm türü" class="flex flex-wrap gap-1 p-1 rounded-[14px] bg-white/5 border border-white/10"></div>
+            </div>
+            <div id="vitalKartlar" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5"></div>
+            <div class="relative">
+                <svg id="vitalGrafik" class="w-full h-auto overflow-visible" viewBox="0 0 640 240" role="img" aria-label="Seçili ölçümün zaman grafiği"></svg>
+                <div id="vitalIpucu" class="hidden pointer-events-none absolute z-10 px-3 py-2 rounded-xl text-xs border border-white/15 whitespace-nowrap" style="background: rgba(20,12,48,0.96)"></div>
+                <div id="vitalBos" class="hidden absolute inset-0 min-h-[200px] flex flex-col items-center justify-center text-center rounded-2xl border border-dashed border-white/15">
+                    <div class="text-base font-semibold text-white">Henüz ölçüm yok</div>
+                    <div class="mt-1.5 text-[13px] text-violet-300">“Ölçüm ekle” ile tansiyon, nabız, şeker ve kilo girin; değişim burada grafik olarak görünür.</div>
+                </div>
+            </div>
+            <details id="vitalTablo" class="group">
+                <summary class="cursor-pointer list-none flex items-center gap-2 text-[13px] font-semibold text-violet-200 hover:text-white">
+                    <svg aria-hidden="true" class="transition-transform group-open:rotate-90" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
+                    Tüm ölçümler</summary>
+                <div class="mt-3 overflow-x-auto ince-kaydirma"><table class="w-full min-w-[640px] text-sm"><thead><tr class="text-left text-xs text-violet-400">
+                    <th class="py-2 font-semibold">Tarih</th><th class="font-semibold">Tansiyon</th><th class="font-semibold">Nabız</th><th class="font-semibold">Ateş</th><th class="font-semibold">Şeker</th><th class="font-semibold">SpO₂</th><th class="font-semibold">Kilo / VKİ</th><th class="font-semibold">Ölçen</th><th></th>
+                </tr></thead><tbody id="vitalSatirlar"></tbody></table></div>
+            </details>
+        </section>
+
+        {% if doktor %}
+        <!-- 3D vücut haritası -->
+        <section id="vucutBolum" class="giris cam p-5 sm:p-6 rounded-[26px] flex flex-col gap-4" style="animation-delay: .08s" aria-labelledby="vucutBaslik">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h2 id="vucutBaslik" class="font-sora text-xl font-medium text-white">Vücut haritası</h2>
+                    <p class="mt-0.5 text-[13px] text-violet-300">Şikâyet bölgesini modele tıklayarak işaretleyin · sürükleyerek döndürün</p>
+                </div>
+                <div role="group" aria-label="Görünüm" class="flex gap-1 p-1 rounded-[14px] bg-white/5 border border-white/10">
+                    {% for k, e in [('on', 'Ön'), ('arka', 'Arka'), ('sol', 'Sol'), ('sag', 'Sağ')] %}
+                    <button type="button" data-gorunum="{{ k }}" class="gorunum-dugme h-9 px-3.5 rounded-[10px] text-[12px] font-semibold text-violet-100 hover:bg-white/10 transition-colors">{{ e }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="grid grid-cols-1 2xl:grid-cols-[1.5fr_1fr] gap-4">
+                <div id="vucutAlan" data-model="{{ url_for('static', filename='models/insan.bin') }}" class="vucut-alan h-[480px] sm:h-[560px] border border-white/10" style="background: radial-gradient(420px 380px at 50% 45%, #2A1660, #0B0720 75%)">
+                    <canvas id="vucutTuval" aria-label="Döndürülebilir 3D insan modeli. İşaretlenen bölgeler sağdaki listede de yer alır." role="img"></canvas>
+                    <div id="vucutEtiket" class="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-2 h-8 px-3 rounded-full text-[12px] font-semibold text-white opacity-0 transition-opacity" style="background: rgba(20,12,48,0.8); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px)">
+                        <span class="w-1.5 h-1.5 rounded-full bg-teal-300"></span><span data-metin></span></div>
+                    <div id="vucutIpucu" class="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-16 px-3.5 py-2 rounded-full text-[12px] font-medium text-violet-100 whitespace-nowrap transition-opacity duration-700" style="background: rgba(20,12,48,0.75)">Bir bölgeye tıklayın</div>
+                    <div class="absolute right-3 top-3 flex flex-col gap-1.5">
+                        <button type="button" data-yakinlas="1" aria-label="Yakınlaştır" class="w-9 h-9 rounded-xl flex items-center justify-center text-white bg-white/10 border border-white/15 hover:bg-white/20 text-lg leading-none">+</button>
+                        <button type="button" data-yakinlas="-1" aria-label="Uzaklaştır" class="w-9 h-9 rounded-xl flex items-center justify-center text-white bg-white/10 border border-white/15 hover:bg-white/20 text-lg leading-none">−</button>
+                        <button type="button" data-sifirla aria-label="Görünümü sıfırla" class="w-9 h-9 rounded-xl flex items-center justify-center text-white bg-white/10 border border-white/15 hover:bg-white/20">
+                            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+                    </div>
+                    <div id="vucutLejant" class="pointer-events-none absolute left-3 bottom-3 right-14 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-violet-200"></div>
+                    <div id="vucutYedek" class="hidden absolute inset-0 flex-col items-center justify-center gap-2 p-6 text-center">
+                        <div class="text-base font-semibold text-white">3D görüntüleme bu cihazda açılamadı</div>
+                        <div class="text-[13px] text-violet-300">Tarayıcınızda WebGL kapalı olabilir. Kayıtlı işaretler yandaki listede görünür.</div>
+                    </div>
+
+                    <!-- İşaret paneli -->
+                    <form id="isaretPanel" class="hidden absolute z-20 w-[290px] max-w-[calc(100%-24px)] max-h-[calc(100%-24px)] overflow-y-auto ince-kaydirma p-4 rounded-[20px] border border-white/15 flex-col gap-3" style="background: rgba(20,12,48,0.94); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: 0 24px 50px -18px rgba(0,0,0,0.8)" novalidate>
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <div id="ipDurum" class="text-[11px] font-semibold uppercase tracking-[0.1em] text-teal-300">Yeni işaret</div>
+                                <div id="ipBolge" class="font-sora text-[17px] font-medium text-white truncate"></div>
+                            </div>
+                            <button type="button" id="ipKapat" aria-label="Kapat" class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-violet-200 hover:bg-white/10">
+                                <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+                        </div>
+                        <div id="ipTurler" role="group" aria-label="Bulgu türü" class="flex flex-wrap gap-1.5"></div>
+                        <div class="flex flex-col gap-1.5">
+                            <div class="flex items-center justify-between text-[12px] font-medium text-violet-100"><label for="ipSiddet">Şiddet</label><span id="ipSiddetDeger" class="font-sora text-sm font-semibold tabular-nums"></span></div>
+                            <input id="ipSiddet" type="range" min="0" max="10" step="1" value="5" class="w-full accent-rose-400">
+                            <div class="flex justify-between text-[10px] text-violet-400"><span>Yok</span><span>Hafif</span><span>Orta</span><span>Şiddetli</span></div>
+                        </div>
+                        <label class="flex flex-col gap-1 text-[12px] font-medium text-violet-100">Not
+                            <textarea id="ipNot" rows="2" maxlength="1000" class="alan !text-[13px] !py-2" placeholder="Ör. Basmakla artan, yanıcı ağrı"></textarea></label>
+                        <label class="flex flex-col gap-1 text-[12px] font-medium text-violet-100">Muayene
+                            <select id="ipMuayene" class="alan !h-10 !text-[13px]"><option value="">Muayeneye bağlama</option></select></label>
+                        <div id="ipBilgi" class="hidden text-[11px] text-violet-300"></div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <div class="flex gap-1.5">
+                                <button type="button" id="ipSil" class="hidden h-9 w-9 rounded-[10px] flex items-center justify-center text-violet-300 hover:text-rose-200 hover:bg-rose-500/15" aria-label="İşareti sil">
+                                    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>
+                                <button type="button" id="ipIyilesti" class="hidden h-9 px-3 rounded-[10px] text-[12px] font-semibold text-emerald-100 border border-emerald-300/30 hover:bg-emerald-400/15"></button>
+                            </div>
+                            <button type="submit" id="ipKaydet" class="h-9 px-4 rounded-[10px] text-[13px] font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 disabled:opacity-60">İşaretle</button>
+                        </div>
+                    </form>
+                </div>
+
+                <aside class="flex flex-col gap-3 min-w-0" aria-labelledby="isaretListeBaslik">
+                    <div class="flex items-center justify-between gap-2">
+                        <h3 id="isaretListeBaslik" class="text-[13px] font-semibold text-violet-300">İşaretli bölgeler</h3>
+                        <div role="group" aria-label="İşaret filtresi" class="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                            {% for k, e in [('aktif', 'Aktif'), ('gecmis', 'İyileşen'), ('tum', 'Tümü')] %}
+                            <button type="button" data-isaret-filtre="{{ k }}" class="isaret-filtre h-8 px-2.5 rounded-lg text-[12px] font-semibold">{{ e }}</button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div id="isaretListe" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-1 gap-2 2xl:max-h-[510px] 2xl:overflow-y-auto ince-kaydirma 2xl:pr-1 content-start"></div>
+                </aside>
+            </div>
+        </section>
+
+        <!-- Reçeteler -->
+        <section class="giris cam p-6 rounded-[26px] flex flex-col gap-4" style="animation-delay: .1s">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="font-sora text-xl font-medium text-white">Reçeteler</h2>
+                    <p class="mt-0.5 text-[13px] text-violet-300">{{ hasta.receteler | length }} reçete · alerji ve etkileşim kontrolünden geçer</p>
+                </div>
+                <button type="button" data-recete-yeni class="flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold text-rose-100 border border-rose-300/30 hover:bg-rose-500/15 transition-colors">+ Yeni reçete</button>
+            </div>
+            {% for r in hasta.receteler %}
+            <article class="satir p-4 rounded-[20px] bg-white/[0.04] border border-white/[0.08] flex flex-col gap-3" style="animation-delay: {{ 0.05 * loop.index }}s">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="text-xs font-semibold text-violet-300 tabular-nums">{{ r.recete_no }} · {{ r.tarih | kisa_tarih }}{% if r.doktor %} · {{ r.doktor.gorunen_ad }}{% endif %}</div>
+                        {% if r.tani %}<div class="mt-0.5 text-[15px] font-semibold text-white">{{ r.tani }}</div>{% endif %}
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        {% if r.uyari_gerekcesi %}
+                        <span class="inline-flex items-center h-7 px-2.5 rounded-full text-[11px] font-semibold text-amber-100 bg-amber-400/20 border border-amber-300/30" title="Gerekçe: {{ r.uyari_gerekcesi }}">Uyarı gerekçeyle geçildi</span>
+                        {% endif %}
+                        <a href="{{ url_for('recete_yazdir', recete_id=r.id) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/20 transition-colors">
+                            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Yazdır</a>
+                        <button type="button" data-recete-sil="{{ r.id }}" aria-label="Reçeteyi sil" class="w-8 h-8 rounded-lg text-violet-300 hover:text-rose-200 hover:bg-rose-500/15 flex items-center justify-center transition-colors">
+                            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>
+                    </div>
+                </div>
+                <ul class="flex flex-col gap-1.5">
+                    {% for k in r.kalemler %}
+                    <li class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2 rounded-xl bg-white/[0.03]">
+                        <span class="text-sm font-semibold text-white">{{ k.ilac_adi }}</span>
+                        <span class="text-[13px] text-violet-200">{{ [k.doz, k.kullanim, k.sure] | select | join(' · ') }}{% if k.adet and k.adet > 1 %} · {{ k.adet }} kutu{% endif %}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% if r.notlar %}<p class="text-[13px] text-violet-300">{{ r.notlar }}</p>{% endif %}
+            </article>
+            {% else %}
+            <div class="py-8 text-center rounded-2xl border border-dashed border-white/15">
+                <div class="text-base font-semibold text-white">Henüz reçete yok</div>
+                <div class="mt-1.5 text-[13px] text-violet-300">Reçete yazarken alerji, etkileşim ve hastalık uyarıları anında gösterilir.</div>
+            </div>
+            {% endfor %}
+        </section>
+
+        <!-- Muayene geçmişi -->
+        <section class="giris cam p-6 rounded-[26px] flex flex-col gap-4" style="animation-delay: .15s">
+            <div>
+                <h2 class="font-sora text-xl font-medium text-white">Muayene geçmişi</h2>
+                <p class="mt-0.5 text-[13px] text-violet-300">{{ hasta.muayeneler | length }} kayıt · en yenisi üstte</p>
+            </div>
+            {% for m in hasta.muayeneler %}
+            <article class="satir relative p-5 rounded-[20px] bg-white/[0.04] border border-white/[0.08] flex flex-col gap-3" style="animation-delay: {{ 0.06 * loop.index }}s">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="text-xs font-semibold text-violet-300 tabular-nums">{{ m.tarih | kisa_tarih }} · {{ m.tarih.strftime('%H:%M') }}{% if m.doktor %} · {{ m.doktor.gorunen_ad }}{% endif %}{% if m.randevu %} · {{ m.randevu.islem_turu }} randevusu{% endif %}</div>
+                        <h3 class="mt-1 font-sora text-lg font-medium text-white">{{ m.tani }}</h3>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if m.kontrol_tarihi %}
+                        <a href="{{ url_for('randevular_sayfasi', hasta_id=hasta.id, tarih=m.kontrol_tarihi.isoformat()) }}" title="Kontrol randevusu oluştur"
+                           class="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-semibold {{ 'text-amber-100 bg-amber-400/20 border border-amber-300/30' if m.kontrol_tarihi >= bugun else 'text-violet-200 bg-white/5 border border-white/10' }} hover:brightness-125 transition">
+                            Kontrol: {{ m.kontrol_tarihi | kisa_tarih }}</a>
+                        {% endif %}
+                        <button type="button" data-recete-muayene="{{ m.id }}" class="inline-flex items-center h-8 px-3 rounded-full text-xs font-semibold text-rose-100 bg-rose-500/15 border border-rose-300/25 hover:bg-rose-500/25 transition-colors">Reçete</button>
+                        <button type="button" data-muayene-sil="{{ m.id }}" aria-label="Muayene kaydını sil" class="w-8 h-8 rounded-lg text-violet-300 hover:text-rose-200 hover:bg-rose-500/15 flex items-center justify-center transition-colors">
+                            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                        </button>
+                    </div>
+                </div>
+                {% if m.vital %}
+                <div class="flex flex-wrap gap-1.5">
+                    {% set v = m.vital %}
+                    {% if v.sistolik %}<span class="inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-semibold text-violet-50 bg-white/[0.06]">TA {{ v.sistolik }}/{{ v.diastolik }}</span>{% endif %}
+                    {% if v.nabiz %}<span class="inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-semibold text-violet-50 bg-white/[0.06]">Nabız {{ v.nabiz }}</span>{% endif %}
+                    {% if v.ates %}<span class="inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-semibold text-violet-50 bg-white/[0.06]">{{ v.ates }} °C</span>{% endif %}
+                    {% if v.seker %}<span class="inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-semibold text-violet-50 bg-white/[0.06]">Şeker {{ v.seker }}</span>{% endif %}
+                    {% if v.kilo %}<span class="inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-semibold text-violet-50 bg-white/[0.06]">{{ v.kilo }} kg</span>{% endif %}
+                </div>
+                {% endif %}
+                {% if m.isaretler %}
+                {% set renkler = {'agri': '#FB7185', 'yara': '#F59E0B', 'dokuntu': '#E879F9', 'sislik': '#38BDF8', 'kitle': '#A78BFA', 'morluk': '#818CF8', 'diger': '#5EEAD4'} %}
+                <div class="flex flex-wrap gap-1.5">
+                    {% for i in m.isaretler %}
+                    <button type="button" data-isaret-git="{{ i.id }}" class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold text-violet-50 bg-white/[0.06] hover:bg-white/[0.12] transition-colors" title="Vücut haritasında göster">
+                        <span class="w-2 h-2 rounded-full" style="background: {{ renkler.get(i.tur, '#fff') }}; box-shadow: 0 0 8px {{ renkler.get(i.tur, '#fff') }}"></span>{{ i.bolge_adi }} · {{ i.tur_adi }}{% if i.siddet is not none %} {{ i.siddet }}/10{% endif %}</button>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if m.bulgular or m.tedavi %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {% if m.bulgular %}
+                    <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.1em] text-teal-300">Bulgular</div>
+                        <p class="mt-1.5 text-sm leading-relaxed text-violet-50 whitespace-pre-line">{{ m.bulgular }}</p>
+                    </div>
+                    {% endif %}
+                    {% if m.tedavi %}
+                    <div class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.1em] text-violet-300">Tedavi / plan</div>
+                        <p class="mt-1.5 text-sm leading-relaxed text-violet-50 whitespace-pre-line">{{ m.tedavi }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if m.receteler %}
+                <div class="flex flex-wrap items-center gap-1.5 text-xs text-violet-300">
+                    <span class="font-semibold">Reçete:</span>
+                    {% for r in m.receteler %}{% for k in r.kalemler %}<span class="inline-flex items-center h-6 px-2 rounded-md bg-rose-500/10 text-rose-100">{{ k.ilac_adi }}</span>{% endfor %}{% endfor %}
+                </div>
+                {% endif %}
+            </article>
+            {% else %}
+            <div class="py-10 text-center rounded-2xl border border-dashed border-white/15">
+                <div class="text-base font-semibold text-white">Henüz muayene kaydı yok</div>
+                <div class="mt-1.5 text-[13px] text-violet-300">“Muayene” ile ilk klinik notu girin.</div>
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <section class="giris kart cam p-6 rounded-[26px] flex flex-col gap-2.5" style="animation-delay: .1s">
+                <h2 class="text-[13px] font-semibold text-violet-300">Güncel tanı</h2>
+                <div class="font-sora text-[26px] font-medium tracking-[-0.02em] text-white">{{ hasta.hastalik_tanisi or 'Henüz tanı girilmedi' }}</div>
+                <div class="text-[13px] text-violet-200">Kayıt tarihi {{ hasta.kayit_tarihi | kisa_tarih }}</div>
+            </section>
+            <section class="giris kart cam p-6 rounded-[26px] flex flex-col gap-2.5" style="animation-delay: .2s">
+                <h2 class="text-[13px] font-semibold text-violet-300">Başvuru şikayeti</h2>
+                <p class="text-[15px] leading-relaxed text-violet-50 whitespace-pre-line">{{ hasta.sikayet or 'Şikayet notu girilmedi.' }}</p>
+            </section>
+        </div>
+
+        <section class="giris kart cam p-6 rounded-[26px] flex flex-col gap-3.5" style="animation-delay: .3s">
+            <h2 class="text-[13px] font-semibold text-violet-300">Kronik hastalıklar</h2>
+            <div class="flex flex-wrap gap-2.5">
+                {% for k in hasta.kronik_liste %}
+                <span class="inline-flex items-center gap-2 h-10 px-4 rounded-[14px] text-sm font-semibold text-white bg-violet-400/15 border border-violet-300/30"><span class="w-2 h-2 rounded-full bg-violet-300" style="box-shadow: 0 0 10px #C4B5FD"></span>{{ k }}</span>
+                {% else %}
+                <span class="text-sm text-violet-200">Kayıtlı kronik hastalık yok.</span>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="giris kart cam p-6 rounded-[26px] flex flex-col gap-4" style="animation-delay: .4s">
+            <h2 class="text-[13px] font-semibold text-violet-300">Geçmiş ameliyatlar</h2>
+            {% if hasta.ameliyat_liste %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {% for a in hasta.ameliyat_liste %}
+                <div class="p-4 rounded-[18px] bg-white/[0.04] border border-white/[0.08] text-sm text-white">{{ a }}</div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <span class="text-sm text-violet-200">Kayıtlı ameliyat yok.</span>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="flex-[1_1_340px] min-w-0 flex flex-col gap-4">
+        <!-- Hesap / tahsilat -->
+        <section id="hesapKart" class="giris relative overflow-hidden cam p-6 rounded-[26px] flex flex-col gap-4" style="animation-delay: .12s" aria-labelledby="hesapBaslik">
+            <div aria-hidden="true" class="pointer-events-none absolute -right-16 -top-20 w-56 h-56 rounded-full opacity-50" style="background: radial-gradient(circle, rgba(250,204,21,0.28), transparent 65%)"></div>
+            <div class="relative flex items-center justify-between gap-3">
+                <h2 id="hesapBaslik" class="text-[13px] font-semibold text-amber-200">Hesap</h2>
+                <a href="{{ url_for('hasta_ekstre', hasta_id=hasta.id) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-white/80 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Ekstre</a>
+            </div>
+            <div id="hesapBakiye" class="relative" aria-live="polite"></div>
+            <div class="relative grid grid-cols-2 gap-2">
+                <button type="button" data-hesap-islem="tahsilat" class="flex items-center justify-center gap-1.5 h-11 rounded-xl text-sm font-bold text-[#422006] transition-transform hover:-translate-y-0.5" style="background: linear-gradient(180deg, #FEF3C7, #FCD34D); box-shadow: 0 12px 26px -14px rgba(245,158,11,0.9)">₺ Tahsilat al</button>
+                <button type="button" data-hesap-islem="ucret" class="flex items-center justify-center h-11 rounded-xl text-sm font-semibold text-white bg-white/[0.07] border border-white/15 hover:bg-white/[0.12] transition-colors">+ Ücret ekle</button>
+            </div>
+            <div id="hesapListe" class="relative flex flex-col gap-1.5"></div>
+            <button type="button" id="hesapTumu" class="hidden relative self-start text-[13px] font-semibold text-amber-200 hover:text-white transition-colors"></button>
+        </section>
+
+        <section class="giris kart cam p-6 rounded-[26px]" style="animation-delay: .2s">
+            <h2 class="mb-1.5 text-[13px] font-semibold text-violet-300">Kimlik ve iletişim</h2>
+            <dl class="grid grid-cols-[auto_1fr] text-sm">
+                {% for etiket, deger in [('Doğum tarihi', hasta.dogum_tarihi), ('Telefon', hasta.telefon), ('Cinsiyet', hasta.cinsiyet), ('Kan grubu', hasta.kan_grubu), ('Kayıt tarihi', hasta.kayit_tarihi | kisa_tarih)] %}
+                <dt class="py-2.5 text-violet-300 border-b border-white/[0.07]">{{ etiket }}</dt>
+                <dd class="py-2.5 text-right text-white tabular-nums border-b border-white/[0.07]">{{ deger or '—' }}</dd>
+                {% endfor %}
+                <dt class="py-2.5 text-violet-300">KVKK rızası</dt>
+                <dd class="py-2.5 text-right">{% if hasta.kvkk_onay %}<span class="text-teal-200 font-semibold">Alındı · {{ hasta.kvkk_onay_tarihi | kisa_tarih }}</span>{% else %}<button type="button" data-kvkk-ac class="text-amber-200 font-semibold underline underline-offset-2 hover:text-white">Bekliyor — kaydet</button>{% endif %}</dd>
+            </dl>
+        </section>
+
+        <section class="giris kart cam p-6 rounded-[26px] flex flex-col gap-1" style="animation-delay: .35s">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-[13px] font-semibold text-violet-300">Randevu geçmişi</h2>
+                <span class="text-xs text-violet-300">{{ hasta.randevular | length }} kayıt</span>
+            </div>
+            {% for r in hasta.randevular %}
+            {% set dr = durum_renk.get(r.durum, ['bg-white/10 text-white', '#A78BFA']) %}
+            <div class="grid grid-cols-[14px_minmax(0,1fr)] gap-3.5">
+                <div class="flex flex-col items-center">
+                    <span class="w-2.5 h-2.5 mt-1 rounded-full" style="background: {{ dr[1] }}; box-shadow: 0 0 10px {{ dr[1] }}"></span>
+                    {% if not loop.last %}<span class="flex-1 w-px my-1 bg-white/10"></span>{% endif %}
+                </div>
+                <div class="pb-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[13px] font-semibold tabular-nums text-white">{{ r.tarih | kisa_tarih }} · {{ r.saat }}</span>
+                        <span class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap {{ dr[0] }}">{{ r.durum }}</span>
+                    </div>
+                    <div class="mt-1 text-sm text-violet-50">{{ r.islem_turu }}{% if r.muayene %} <span class="text-teal-300 text-xs font-semibold">· muayene girildi</span>{% endif %}</div>
+                    {% if r.notlar %}<div class="mt-0.5 text-[13px] leading-relaxed text-violet-300">{{ r.notlar }}</div>{% endif %}
+                    {% if doktor and r.durum in ('Bekliyor', 'Onaylandı') and not r.muayene %}
+                    <button type="button" data-muayene-randevu="{{ r.id }}" class="mt-2 inline-flex items-center h-8 px-3 rounded-lg text-xs font-semibold text-teal-100 bg-teal-400/15 border border-teal-300/30 hover:bg-teal-400/25 transition-colors">Bu randevu için muayene gir</button>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <p class="py-4 text-sm text-violet-200">Bu hastanın henüz randevusu yok.</p>
+            <a href="{{ url_for('randevular_sayfasi', hasta_id=hasta.id) }}" class="flex items-center justify-center h-11 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">İlk randevuyu oluştur</a>
+            {% endfor %}
+        </section>
+    </div>
+</div>
+
+<!-- Vital ölçüm modalı -->
+<div id="vitalModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="vitalForm" class="modal-ic cam-parlak w-full max-w-2xl rounded-[28px] p-6 sm:p-8 flex flex-col gap-5" style="background: rgba(24,14,58,0.9)" role="dialog" aria-modal="true" aria-labelledby="vitalModalBaslik" novalidate>
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 id="vitalModalBaslik" class="font-sora text-2xl font-medium text-white">Yeni ölçüm</h2>
+                <p class="mt-1 text-sm text-violet-200/80">{{ hasta.ad_soyad }} · Sadece ölçtüğünüz değerleri girin; renkler normal aralığı gösterir.</p>
+            </div>
+            <button type="button" data-modal-kapat="vitalModal" aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-violet-100 flex items-center justify-center hover:bg-white/10 transition-colors">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div data-vital-grup="v_">{{ vital_alanlari('v_') }}</div>
+        <div class="flex flex-wrap justify-end gap-3">
+            <button type="button" data-modal-kapat="vitalModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+            <button type="submit" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors disabled:opacity-60">Ölçümü kaydet</button>
+        </div>
+    </form>
+</div>
+
+<!-- KVKK açık rıza modalı -->
+<div id="kvkkModal" class="modal kapali fixed inset-0 z-[100] flex items-center justify-center p-4" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <div class="modal-ic cam-parlak w-full max-w-lg rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(8,30,40,0.92)" role="dialog" aria-modal="true" aria-labelledby="kvkkBaslik">
+        <div class="flex items-center gap-3">
+            <span class="w-11 h-11 rounded-2xl flex items-center justify-center bg-teal-400/20 text-teal-200"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <h2 id="kvkkBaslik" class="font-sora text-xl font-medium text-white">Açık rıza kaydı</h2>
+        </div>
+        <ol class="flex flex-col gap-2.5 text-sm text-teal-50">
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">1</span><span><a href="{{ url_for('kvkk_aydinlatma', hasta=hasta.id) }}" target="_blank" rel="noopener" class="font-semibold underline underline-offset-2 text-teal-200 hover:text-white">Aydınlatma metnini</a> yazdırın veya ekrandan hastaya okutun.</span></li>
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">2</span><span>Hastanın imzalı onayını dosyasına ekleyin.</span></li>
+            <li class="flex gap-3"><span class="shrink-0 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">3</span><span>Aşağıdaki onayla rızayı sisteme kaydedin. Kayıt, işlem günlüğüne adınız ve saatle işlenir.</span></li>
+        </ol>
+        <label class="flex items-start gap-3 p-4 rounded-2xl border border-teal-300/25 bg-teal-400/[0.07] cursor-pointer text-[13px] text-teal-50">
+            <input id="kvkkOnayKutu" type="checkbox" class="mt-0.5 w-5 h-5 shrink-0 accent-teal-400">
+            {{ hasta.ad_soyad }} aydınlatıldı ve kişisel ile sağlık verilerinin işlenmesine açık rıza verdi.</label>
+        <div class="flex flex-wrap justify-end gap-3">
+            <button type="button" data-modal-kapat="kvkkModal" class="h-11 px-5 rounded-xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+            <button type="button" id="kvkkKaydet" class="h-11 px-5 rounded-xl text-sm font-bold text-[#042F2E] bg-teal-200 hover:bg-teal-100 transition-colors disabled:opacity-50" disabled>Rızayı kaydet</button>
+        </div>
+    </div>
+</div>
+
+{% if doktor %}
+<!-- Muayene kaydı modalı -->
+<div id="muayeneModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="muayeneForm" class="modal-ic cam-parlak w-full max-w-3xl rounded-[28px] p-6 sm:p-8 flex flex-col gap-5" style="background: rgba(24,14,58,0.9)" role="dialog" aria-modal="true" aria-labelledby="muayeneBaslik" novalidate>
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 id="muayeneBaslik" class="font-sora text-2xl font-medium text-white">Muayene kaydı</h2>
+                <p class="mt-1 text-sm text-violet-200/80">{{ hasta.ad_soyad }} · {{ bugun | tr_tarih }}</p>
+            </div>
+            <button type="button" data-modal-kapat="muayeneModal" aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-violet-100 flex items-center justify-center hover:bg-white/10 transition-colors">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        {% if hasta.alerjisi_var %}
+        <div class="flex gap-2.5 px-4 py-3 rounded-2xl text-[13px] font-medium text-rose-100 bg-rose-500/20 border border-rose-300/35">
+            <strong class="font-bold shrink-0">Alerji:</strong><span>{{ hasta.alerji_durumu }}</span>
+        </div>
+        {% endif %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Bağlı randevu
+                <select id="m_randevu" class="alan">
+                    <option value="">Randevusuz muayene</option>
+                    {% for r in baglanabilir_randevular %}<option value="{{ r.id }}">{{ r.tarih | kisa_tarih }} {{ r.saat }} · {{ r.islem_turu }} ({{ r.durum }})</option>{% endfor %}
+                </select></label>
+            <label class="relative flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Tanı *
+                <input id="m_tani" type="text" autocomplete="off" class="alan" placeholder="Tanı yazmaya başlayın…" required>
+                <div id="m_tani_oneri" class="oneri-listesi ince-kaydirma hidden absolute top-full left-0 right-0 mt-2 z-20 rounded-xl border border-white/15 py-1" style="background: rgba(20,12,48,0.97)"></div></label>
+        </div>
+        <details class="group rounded-2xl border border-white/10 bg-white/[0.03]" id="m_vital_kutu">
+            <summary class="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3">
+                <span class="flex items-center gap-2 text-sm font-semibold text-white">
+                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5EEAD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    Vital bulgular <span class="font-normal text-violet-300">(isteğe bağlı)</span></span>
+                <svg aria-hidden="true" class="text-violet-300 transition-transform group-open:rotate-180" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </summary>
+            <div class="px-4 pb-4" data-vital-grup="mv_">{{ vital_alanlari('mv_', kompakt=True) }}</div>
+        </details>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Bulgular
+            <textarea id="m_bulgular" rows="3" class="alan" placeholder="Fizik muayene, tahlil sonuçları…"></textarea></label>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Tedavi / plan
+            <textarea id="m_tedavi" rows="3" class="alan" placeholder="Önerilen tedavi, yönlendirmeler…"></textarea></label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Kontrol tarihi
+                <input id="m_kontrol" type="date" class="alan" min="{{ bugun.isoformat() }}"></label>
+            <label class="flex items-center gap-3 h-12 px-4 rounded-[14px] bg-white/5 border border-white/10 text-[13px] font-medium text-violet-100 cursor-pointer">
+                <input id="m_guncel" type="checkbox" class="w-4 h-4 accent-violet-400" checked>Hastanın güncel tanısı olarak kaydet</label>
+        </div>
+        <div class="flex flex-wrap justify-end gap-3 pt-1">
+            <button type="button" data-modal-kapat="muayeneModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+            <button type="button" id="muayeneReceteli" class="h-12 px-6 rounded-2xl text-sm font-bold text-rose-100 border border-rose-300/35 hover:bg-rose-500/15 transition-colors disabled:opacity-60">Kaydet ve reçete yaz</button>
+            <button type="submit" id="muayeneKaydet" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors disabled:opacity-60">Muayeneyi kaydet</button>
+        </div>
+    </form>
+</div>
+
+<!-- Reçete oluşturucu -->
+<div id="receteModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-3 sm:p-8" style="background: rgba(3,2,14,0.78); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px)" aria-hidden="true">
+    <form id="receteForm" class="modal-ic cam-parlak w-full max-w-6xl rounded-[30px] overflow-hidden" style="background: rgba(22,12,52,0.92)" role="dialog" aria-modal="true" aria-labelledby="receteBaslik" novalidate>
+        <div class="flex items-start justify-between gap-4 px-6 sm:px-8 pt-6 sm:pt-7 pb-5 border-b border-white/10">
+            <div class="flex items-center gap-4">
+                <span class="w-12 h-12 rounded-2xl flex items-center justify-center text-[#3B0A1E]" style="background: linear-gradient(135deg, #FFE4E6, #FB7185)">
+                    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></span>
+                <div>
+                    <h2 id="receteBaslik" class="font-sora text-2xl font-medium text-white">Yeni reçete</h2>
+                    <p class="text-sm text-violet-200/80">{{ hasta.ad_soyad }}{% if hasta.yas is not none %} · {{ hasta.yas }} yaş{% endif %}{% if hasta.alerjisi_var %} · <span class="text-rose-200 font-semibold">Alerji: {{ hasta.alerji_durumu }}</span>{% endif %}</p>
+                </div>
+            </div>
+            <button type="button" data-modal-kapat="receteModal" aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-violet-100 flex items-center justify-center hover:bg-white/10 transition-colors">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[1.45fr_1fr]">
+            <div class="flex flex-col gap-4 p-6 sm:p-8 lg:border-r border-white/10">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Bağlı muayene
+                        <select id="r_muayene" class="alan">
+                            <option value="">Muayenesiz reçete</option>
+                            {% for m in hasta.muayeneler %}<option value="{{ m.id }}" data-tani="{{ m.tani }}">{{ m.tarih | kisa_tarih }} · {{ m.tani }}</option>{% endfor %}
+                        </select></label>
+                    <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Tanı
+                        <input id="r_tani" type="text" class="alan" autocomplete="off" placeholder="Reçetede görünecek tanı"></label>
+                </div>
+
+                <div class="relative">
+                    <label for="ilacArama" class="block mb-1.5 text-[13px] font-medium text-violet-100">İlaç ekle</label>
+                    <div class="relative">
+                        <svg aria-hidden="true" class="absolute left-4 top-1/2 -translate-y-1/2 text-violet-300" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input id="ilacArama" type="text" role="combobox" aria-expanded="false" aria-controls="ilacListe" aria-autocomplete="list" autocomplete="off"
+                               class="alan !h-[52px] pl-11 !text-[15px]" placeholder="İlaç adı veya etken madde yazın… (listede yoksa Enter ile serbest ekleyin)">
+                    </div>
+                    <ul id="ilacListe" role="listbox" class="oneri-listesi ince-kaydirma hidden absolute left-0 right-0 top-full mt-2 z-30 rounded-2xl border border-white/15 py-1.5 !max-h-[300px]" style="background: rgba(20,12,48,0.98)"></ul>
+                </div>
+
+                <div id="kalemler" class="flex flex-col gap-2.5"></div>
+                <div id="kalemBos" class="py-10 px-4 text-center rounded-2xl border border-dashed border-white/15">
+                    <div class="text-[15px] font-semibold text-white">Reçete boş</div>
+                    <div class="mt-1 text-[13px] text-violet-300">Yukarıdan ilaç arayın. Her eklemede alerji ve etkileşim kontrolü otomatik çalışır.</div>
+                </div>
+
+                <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Hekim notu
+                    <textarea id="r_notlar" rows="2" class="alan" placeholder="Örn. 6 hafta sonra TSH kontrolü"></textarea></label>
+            </div>
+
+            <aside class="flex flex-col gap-4 p-6 sm:p-8 bg-black/10" aria-live="polite" aria-labelledby="kontrolBaslik">
+                <div class="flex items-center gap-4">
+                    <div id="kontrolGosterge" class="relative w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-500"></div>
+                    <div>
+                        <h3 id="kontrolBaslik" class="font-sora text-lg font-medium text-white">Güvenlik kontrolü</h3>
+                        <p id="kontrolOzet" class="text-[13px] text-violet-300">İlaç eklendikçe kontrol edilir.</p>
+                    </div>
+                </div>
+                <div id="kontrolKartlar" class="flex flex-col gap-2.5"></div>
+                <div id="gerekceKutu" class="hidden flex-col gap-1.5">
+                    <label for="r_gerekce" class="text-[13px] font-semibold text-rose-100">Ciddi uyarıya rağmen devam etme gerekçesi *</label>
+                    <textarea id="r_gerekce" rows="2" class="alan" style="border-color: rgba(253,164,175,0.45)" placeholder="Örn. Hasta daha önce sorunsuz kullandı; desensitizasyon yapıldı…"></textarea>
+                    <span class="text-[11px] text-rose-200/80">Gerekçe reçeteye ve işlem günlüğüne kaydedilir.</span>
+                </div>
+                <p class="mt-auto text-[11px] leading-relaxed text-violet-300/80">{{ uyari_notu }}</p>
+            </aside>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 px-6 sm:px-8 py-5 border-t border-white/10">
+            <span id="kalemSayac" class="text-[13px] text-violet-300">0 ilaç</span>
+            <div class="flex flex-wrap gap-3">
+                <button type="button" data-modal-kapat="receteModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+                <button type="submit" data-yazdir="0" class="recete-kaydet h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/10 border border-white/20 hover:bg-white/15 transition-colors disabled:opacity-50">Kaydet</button>
+                <button type="submit" data-yazdir="1" class="recete-kaydet h-12 px-7 rounded-2xl text-sm font-bold text-[#3B0A1E] transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style="background: linear-gradient(180deg, #FFE4E6, #FDA4AF)">Kaydet ve yazdır</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+{% include '_kasa_modal.html' %}
+
+<script id="profilVeri" type="application/json">{{ {
+    'hasta': hasta_json,
+    'vitaller': vitaller_json,
+    'doktor': true if doktor else false,
+    'acilacak': acilacak_randevu,
+    'ilaclar': ilaclar_json if doktor else [],
+    'hesap': hesap_json,
+    'isaretler': isaretler_json,
+    'isaret_turleri': isaret_turleri,
+    'muayeneler': muayeneler_json,
+} | tojson }}</script>
+{% endblock %}
+
+{% block scriptler %}
+<script src="{{ url_for('static', filename='js/profil.js') }}"></script>
+<script src="{{ url_for('static', filename='js/kasa.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hesap.js') }}"></script>
+{% if doktor %}<script src="{{ url_for('static', filename='js/vucut3d.js') }}"></script>{% endif %}
+{% endblock %}

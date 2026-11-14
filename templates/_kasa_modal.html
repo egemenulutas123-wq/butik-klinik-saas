@@ -1,0 +1,83 @@
+{# Ortak kasa işlemi penceresi: tahsilat, hizmet ücreti, indirim, iade + iptal gerekçesi #}
+<div id="kasaModal" class="modal kapali fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto p-3 sm:p-8" style="background: rgba(3,2,14,0.78); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px)" aria-hidden="true">
+    <form id="kasaForm" class="modal-ic cam-parlak w-full max-w-xl rounded-[30px] overflow-hidden" style="background: rgba(10,26,30,0.94)" role="dialog" aria-modal="true" aria-labelledby="kasaBaslik" novalidate>
+        <div class="relative px-6 sm:px-7 pt-6 pb-5 border-b border-white/10 overflow-hidden">
+            <div aria-hidden="true" class="absolute -right-10 -top-16 w-56 h-56 rounded-full opacity-40" style="background: radial-gradient(circle, rgba(250,204,21,0.45), transparent 65%)"></div>
+            <div class="relative flex items-start justify-between gap-4">
+                <div class="flex items-center gap-4 min-w-0">
+                    <span class="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center font-sora text-[22px] font-semibold text-[#422006]" style="background: linear-gradient(135deg, #FEF3C7, #F59E0B); box-shadow: 0 10px 26px -10px rgba(245,158,11,0.8)">₺</span>
+                    <div class="min-w-0">
+                        <h2 id="kasaBaslik" class="font-sora text-2xl font-medium text-white">Kasa işlemi</h2>
+                        <p id="kasaHastaSatir" class="text-sm text-teal-50/80 truncate"></p>
+                    </div>
+                </div>
+                <button type="button" data-modal-kapat="kasaModal" aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-teal-50 flex items-center justify-center hover:bg-white/10 transition-colors">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-5 p-6 sm:p-7">
+            <label id="kasaHastaSecimKutu" class="hidden flex-col gap-1.5 text-[13px] font-medium text-teal-100">Hasta
+                <select id="kasaHastaSec" class="alan"><option value="">Hasta seçin…</option></select></label>
+
+            <div id="kasaBakiyeKart" class="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border transition-colors"></div>
+
+            <div role="tablist" aria-label="İşlem türü" id="kasaTurler" class="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 rounded-[16px] bg-white/5 border border-white/10">
+                <button type="button" role="tab" data-kasa-tur="tahsilat" class="kasa-tur h-10 rounded-[12px] text-[13px] font-semibold">Tahsilat</button>
+                <button type="button" role="tab" data-kasa-tur="ucret" class="kasa-tur h-10 rounded-[12px] text-[13px] font-semibold">Hizmet ücreti</button>
+                <button type="button" role="tab" data-kasa-tur="indirim" data-sadece-doktor class="kasa-tur h-10 rounded-[12px] text-[13px] font-semibold">İndirim</button>
+                <button type="button" role="tab" data-kasa-tur="iade" data-sadece-doktor class="kasa-tur h-10 rounded-[12px] text-[13px] font-semibold">İade</button>
+            </div>
+
+            <label id="kasaRandevuKutu" class="hidden flex-col gap-1.5 text-[13px] font-medium text-teal-100">Randevu
+                <select id="kasaRandevu" class="alan"><option value="">Randevuya bağlama</option></select></label>
+
+            <div class="flex flex-col gap-2">
+                <label for="kasaTutar" class="text-[13px] font-medium text-teal-100">Tutar</label>
+                <div class="relative">
+                    <span aria-hidden="true" class="absolute left-5 top-1/2 -translate-y-1/2 font-sora text-[28px] font-medium text-amber-200/80">₺</span>
+                    <input id="kasaTutar" type="text" inputmode="decimal" autocomplete="off" placeholder="0"
+                           class="alan !h-[72px] !pl-12 !rounded-[20px] font-sora !text-[34px] font-medium tracking-[-0.02em] tabular-nums">
+                </div>
+                <div id="kasaHizli" class="flex flex-wrap gap-1.5"></div>
+            </div>
+
+            <fieldset id="kasaYontemKutu" class="flex flex-col gap-2">
+                <legend class="mb-2 text-[13px] font-medium text-teal-100">Ödeme yöntemi</legend>
+                <div class="grid grid-cols-3 gap-2" id="kasaYontemler">
+                    {% for y, ikon in [('Nakit', '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>'), ('Kart', '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>'), ('Havale', '<path d="M3 10 12 4l9 6"/><path d="M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/>')] %}
+                    <button type="button" data-yontem="{{ y }}" class="kasa-yontem flex flex-col items-center justify-center gap-1 h-[68px] rounded-2xl border text-[13px] font-semibold transition-all">
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{{ ikon | safe }}</svg>{{ y }}</button>
+                    {% endfor %}
+                </div>
+            </fieldset>
+
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-100">Açıklama <span class="sr-only">(isteğe bağlı)</span>
+                <input id="kasaAciklama" type="text" maxlength="200" class="alan" placeholder="İsteğe bağlı, ör. 2. taksit"></label>
+
+            <div id="kasaSonraki" class="flex items-center justify-between gap-3 text-[13px] text-teal-50/80"></div>
+        </div>
+
+        <div class="flex flex-wrap justify-end gap-3 px-6 sm:px-7 py-5 border-t border-white/10 bg-black/10">
+            <button type="button" data-modal-kapat="kasaModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+            <button type="submit" data-belge="0" class="kasa-kaydet h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/10 border border-white/20 hover:bg-white/15 transition-colors disabled:opacity-50">Kaydet</button>
+            <button type="submit" data-belge="1" id="kasaMakbuzlu" class="kasa-kaydet h-12 px-6 rounded-2xl text-sm font-bold text-[#422006] transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style="background: linear-gradient(180deg, #FEF3C7, #FCD34D); box-shadow: 0 14px 30px -14px rgba(245,158,11,0.9)">Kaydet ve makbuz</button>
+        </div>
+    </form>
+</div>
+
+<div id="kasaIptalModal" class="modal kapali fixed inset-0 z-[125] flex items-center justify-center p-4" style="background: rgba(3,2,14,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="kasaIptalForm" class="modal-ic cam-parlak w-full max-w-md rounded-[24px] p-6 flex flex-col gap-4" style="background: rgba(24,14,58,0.94)" role="dialog" aria-modal="true" aria-labelledby="kasaIptalBaslik" novalidate>
+        <div>
+            <h2 id="kasaIptalBaslik" class="font-sora text-xl font-medium text-white">Kaydı iptal et</h2>
+            <p id="kasaIptalMetin" class="mt-1.5 text-sm leading-relaxed text-violet-200"></p>
+        </div>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">İptal nedeni *
+            <input id="kasaIptalNeden" type="text" maxlength="200" class="alan" placeholder="Ör. Yanlış tutar girildi"></label>
+        <p class="text-[12px] text-violet-300">Kayıt silinmez; üstü çizili olarak saklanır ve işlem günlüğüne yazılır.</p>
+        <div class="flex flex-wrap justify-end gap-3">
+            <button type="button" data-modal-kapat="kasaIptalModal" class="h-11 px-5 rounded-xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
+            <button type="submit" class="h-11 px-5 rounded-xl text-sm font-bold text-white bg-rose-500 hover:bg-rose-400 transition-colors disabled:opacity-60">İptal et</button>
+        </div>
+    </form>
+</div>

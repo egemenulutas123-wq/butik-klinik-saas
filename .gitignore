@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+
+# Yerel veritabanı, gizli anahtar ve yedekler (hasta verisi asla depoya girmez)
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Editör / işletim sistemi
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Yerel yardımcı betik
+github_gonder.bat
