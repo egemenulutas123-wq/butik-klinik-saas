@@ -2893,8 +2893,11 @@ def tahmini_bekleme(randevular):
         n = sayac.get(r.doktor_id, 0)
         sayac[r.doktor_id] = n + 1
         randevu_ani = datetime.combine(r.tarih, datetime.strptime(r.saat, '%H:%M').time())
-        tahmin = max(simdi + timedelta(minutes=n * sure), randevu_ani)
-        sonuc[r.id] = {'sira': n + 1, 'dk': max(0, round((tahmin - simdi).total_seconds() / 60))}
+        sira_tahmini = simdi + timedelta(minutes=n * sure)
+        tahmin = max(sira_tahmini, randevu_ani)
+        sonuc[r.id] = {'sira': n + 1, 'dk': max(0, round((tahmin - simdi).total_seconds() / 60)),
+                       # Erken gelen hasta: randevu saatini bekliyor (dakika yerine saat gösterilir)
+                       'saat': r.saat if randevu_ani > sira_tahmini + timedelta(minutes=sure) else None}
     return sonuc
 
 
@@ -3003,7 +3006,7 @@ def salon_durum(anahtar):
         'klinik': KLINIK_ADI, 'mesaj': ayar('salon_mesaj'), 'simdi': datetime.now().strftime('%H:%M'),
         'cagrilar': [{**kisi(r), 'anahtar': f'{r.id}-{r.cagri_sayisi}', 'zaman': r.cagrildi.strftime('%H:%M'),
                       'yeni': (datetime.now() - r.cagrildi).total_seconds() < 600} for r in cagrilar[:6]],
-        'bekleyenler': [{**kisi(r), 'dk': bekleme[r.id]['dk']} for r in bekleyenler[:8]],
+        'bekleyenler': [{**kisi(r), 'dk': bekleme[r.id]['dk'], 'saat': bekleme[r.id]['saat']} for r in bekleyenler[:8]],
         'bekleyen_sayi': len(bekleyenler),
     })
 

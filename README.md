@@ -61,7 +61,36 @@ Bunun yanında güzel görünen ama işe yaramayan bir demo değil — **alerji 
 <td><img src="docs/ekran/randevular.jpg" alt="Randevular"><br><sub><b>Randevular</b> — haftalık takvim, online talepler, erteleme</sub></td>
 <td><img src="docs/ekran/guvenlik.jpg" alt="Güvenlik ve KVKK"><br><sub><b>Güvenlik ve KVKK</b> — işlem günlüğü, açık rıza, yedekler</sub></td>
 </tr>
+<tr>
+<td><img src="docs/ekran/raporlar.jpg" alt="Raporlar"><br><sub><b>Raporlar</b> — dönem seçici, gelir ve gelmeme oranı, 3D cam grafik sahnesi</sub></td>
+<td><img src="docs/ekran/raporlar-grafik.jpg" alt="Rapor grafikleri"><br><sub><b>Grafikler</b> — 12 aylık gelir, randevu sonuçları, hekim bazında ciro · tek tuşla PDF</sub></td>
+</tr>
+<tr>
+<td><img src="docs/ekran/salon-ekrani.jpg" alt="Bekleme salonu ekranı"><br><sub><b>Bekleme salonu TV ekranı</b> — sıra numarası, kısaltılmış ad, oda; zil ve Türkçe sesli anons</sub></td>
+<td><img src="docs/ekran/bekleme-salonu-panel.jpg" alt="Sıra yönetimi"><br><sub><b>Sıra yönetimi</b> — geldi → salonda → çağrıldı, hekim filtresi</sub></td>
+</tr>
+<tr>
+<td><img src="docs/ekran/tahliller.jpg" alt="Tahliller"><br><sub><b>Tahliller ve dosyalar</b> — referans bandlı zaman grafiği, ↑↓ işaretleri, PDF/görüntü belgeleri</sub></td>
+<td><img src="docs/ekran/muayene-sablonu.jpg" alt="Muayene şablonu"><br><sub><b>Muayene şablonları</b> — tek tıkla bulgu, tedavi, kontrol tarihi ve hazır reçete</sub></td>
+</tr>
+<tr>
+<td><img src="docs/ekran/stok.jpg" alt="Stok"><br><sub><b>Stok</b> — kritik seviye, son kullanma tarihi, hizmetle otomatik düşüm</sub></td>
+<td><img src="docs/ekran/hatirlatma-kontrol.jpg" alt="Hatırlatma ve kontrol takibi"><br><sub><b>Hatırlatma ve kontrol takibi</b> — tek tıkla WhatsApp, gelmedi işaretleme</sub></td>
+</tr>
+<tr>
+<td><img src="docs/ekran/komut-paleti.jpg" alt="Ctrl+K komut paleti"><br><sub><b>Ctrl+K</b> — hasta, randevu, malzeme araması ve hızlı işlemler</sub></td>
+<td><img src="docs/ekran/bildirimler.jpg" alt="Bildirim merkezi"><br><sub><b>Bildirim merkezi</b> — talepler, gecikenler, kritik stok, referans dışı tahliller</sub></td>
+</tr>
+<tr>
+<td><img src="docs/ekran/hekim-plani.jpg" alt="Hekim çalışma planı"><br><sub><b>Çoklu hekim</b> — haftalık mesai, oda, takvim rengi ve izinler</sub></td>
+<td><img src="docs/ekran/portal-kodu.jpg" alt="Hasta portalı kodu"><br><sub><b>Portal giriş kodu</b> — tek kullanımlık, WhatsApp ile gönderilir</sub></td>
+</tr>
 </table>
+
+<p align="center">
+<img src="docs/ekran/telefon.jpg" alt="Telefonda klinik paneli ve hasta portalı" width="100%"><br>
+<sub><b>Telefonda</b> — klinik paneli, hasta portalı girişi, reçeteler ve tahlil sonuçları · ana ekrana uygulama olarak eklenebilir</sub>
+</p>
 
 ---
 

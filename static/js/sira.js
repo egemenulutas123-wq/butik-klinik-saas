@@ -71,7 +71,7 @@
     m.appendChild(el('div', 'text-[12px] text-violet-200/70 truncate', alt.join(' · ')));
     ust.appendChild(m);
     if (tur === 'salon' && r.bekleme) {
-      ust.appendChild(el('span', 'shrink-0 text-right text-[11px] leading-tight text-sky-100', r.bekleme.dk ? '~' + r.bekleme.dk + ' dk' : 'Sırada'));
+      ust.appendChild(el('span', 'shrink-0 text-right text-[11px] leading-tight text-sky-100', r.bekleme.saat ? 'Randevu ' + r.bekleme.saat : r.bekleme.dk ? '~' + r.bekleme.dk + ' dk' : 'Sırada'));
     }
     if (tur === 'cagri') ust.appendChild(el('span', 'shrink-0 text-[11px] text-teal-100 tabular-nums', r.cagrildi + (r.cagri_sayisi > 1 ? ' · ' + r.cagri_sayisi + '×' : '')));
     if (COK && r.doktor_renk) { var cizgi = el('span', 'w-1 self-stretch rounded-full'); cizgi.style.background = r.doktor_renk; ust.insertBefore(cizgi, ust.firstChild); }

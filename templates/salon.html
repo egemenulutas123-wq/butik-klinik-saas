@@ -167,7 +167,7 @@
             m.appendChild(el('div', 'text-[clamp(16px,1.7vw,34px)] font-semibold truncate', b.ad || ('Sıra ' + b.sira_no)));
             m.appendChild(el('div', 'text-[clamp(12px,1.1vw,22px)] text-violet-200/70 truncate', b.hekim));
             li.appendChild(m);
-            li.appendChild(el('span', 'shrink-0 text-[clamp(14px,1.4vw,28px)] font-semibold text-teal-100 tabular-nums', b.dk <= 1 ? 'Sırada' : '~' + b.dk + ' dk'));
+            li.appendChild(el('span', 'shrink-0 text-[clamp(14px,1.4vw,28px)] font-semibold text-teal-100 tabular-nums', b.saat ? 'Saat ' + b.saat : b.dk <= 1 ? 'Sırada' : '~' + b.dk + ' dk'));
             kap.appendChild(li);
         });
     }
