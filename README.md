@@ -348,7 +348,11 @@ butik-klinik-saas/
 - [x] Sesli muayene notu (Web Speech API)
 - [x] Stok ve malzeme takibi
 - [x] Çoklu hekim çalışma takvimi
-- [ ] PWA — telefona uygulama olarak kurulum
+- [x] PWA — telefona uygulama olarak kurulum
+- [x] Hasta portalı (tek kullanımlık kodla giriş)
+- [x] Muayene şablonları, kontrol takibi, bildirim merkezi
+- [ ] Gerçek SMS sağlayıcısıyla otomatik kod / hatırlatma gönderimi
+- [ ] HTTPS ile kurulum rehberi (tam PWA ve telefonda sesli not için)
 
 Fikirleriniz için [Issues](../../issues) sekmesini kullanabilirsiniz.
 
