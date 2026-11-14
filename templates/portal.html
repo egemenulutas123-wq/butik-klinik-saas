@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <title>Hasta portalı | {{ klinik_adi }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { theme: { extend: { fontFamily: { sora: ['Sora', 'system-ui', 'sans-serif'], sans: ['Inter', 'system-ui', 'sans-serif'] } } } };</script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/klinik.css') }}">
+    {% with manifest='/portal/manifest.webmanifest', pwa_kisa_ad='Portalım' %}{% include '_pwa_head.html' %}{% endwith %}
+    <style>
+        body { background: radial-gradient(900px 600px at 80% -10%, rgba(45,212,191,0.18), transparent 60%), radial-gradient(800px 600px at 0% 20%, rgba(124,58,237,0.25), transparent 60%), #06131A; min-height: 100vh; }
+        .kart { background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.1); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+        .kod-hane { width: 100%; letter-spacing: .5em; text-align: center; }
+        details > summary::-webkit-details-marker { display: none; }
+    </style>
+</head>
+<body class="font-sans text-white antialiased" style="padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom)">
+<div class="mx-auto w-full max-w-3xl px-4 sm:px-6 py-6 sm:py-10 flex flex-col gap-5">
+
+    <header class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <span class="w-10 h-10 rounded-full" style="background: radial-gradient(circle at 32% 28%, #FFFFFF, #5EEAD4 40%, #0F766E 85%); box-shadow: 0 0 28px rgba(94,234,212,0.5)"></span>
+            <div class="leading-tight">
+                <div class="font-sora text-lg font-semibold">{{ klinik_adi }}</div>
+                <div class="text-[12px] text-teal-100/70">Hasta portalı</div>
+            </div>
+        </div>
+        {% if hasta %}
+        <button type="button" id="cikis" class="h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">Çıkış</button>
+        {% endif %}
+    </header>
+
+{% if not hasta %}
+    <!-- ===================== Giriş ===================== -->
+    <main class="kart rounded-[28px] p-6 sm:p-8 flex flex-col gap-5 mt-4 sm:mt-10 max-w-md w-full self-center">
+        <div>
+            <h1 class="font-sora text-3xl font-medium tracking-[-0.02em]">Sağlık bilgileriniz, cebinizde</h1>
+            <p class="mt-2 text-[14px] leading-relaxed text-teal-50/75">Reçetelerinizi, randevularınızı ve tahlil sonuçlarınızı görmek için kliniğe kayıtlı telefon numaranızı ve size gönderilen tek kullanımlık kodu girin.</p>
+        </div>
+        <form id="girisForm" class="flex flex-col gap-4" novalidate>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-100">Cep telefonu
+                <input id="p_tel" type="tel" inputmode="tel" autocomplete="tel" class="alan" placeholder="05xx xxx xx xx" required></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-teal-100">Giriş kodu (6 hane)
+                <input id="p_kod" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" class="alan kod-hane font-sora !text-2xl !h-14" placeholder="••••••" required></label>
+            <button type="submit" class="h-[52px] rounded-2xl text-[15px] font-bold text-[#04211F] transition-transform hover:-translate-y-0.5 disabled:opacity-60" style="background: linear-gradient(180deg, #CCFBF1, #5EEAD4)">Giriş yap</button>
+        </form>
+        <div class="flex flex-col gap-2 pt-4 border-t border-white/10">
+            <div class="text-[13px] font-semibold text-white">Kodunuz yok mu?</div>
+            <p class="text-[13px] text-teal-50/70">Telefon numaranızı yukarıya yazıp aşağıdaki düğmeye dokunun; klinik kodunuzu WhatsApp ile gönderir.</p>
+            <button type="button" id="kodIste" class="h-11 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">Kliniğimden kod iste</button>
+        </div>
+        <p class="text-[11px] leading-relaxed text-teal-50/50">Bilgileriniz 6698 sayılı KVKK kapsamında korunur. Kod tek kullanımlıktır; kliniğimiz sizden telefonla kod istemez. 30 dakika işlem yapılmazsa oturum kapanır.</p>
+        <a href="{{ url_for('online_randevu') }}" class="text-center text-[13px] font-semibold text-teal-200 underline underline-offset-4 hover:text-white">Online randevu al</a>
+    </main>
+{% else %}
+    <!-- ===================== Portal ===================== -->
+    <section class="flex flex-col gap-1 mt-2">
+        <span class="text-[13px] text-teal-100/70" id="selam"></span>
+        <h1 class="font-sora text-4xl sm:text-5xl font-medium tracking-[-0.03em]">{{ hasta.ad_soyad }}</h1>
+        <div class="mt-2 flex flex-wrap gap-2" id="saglikCipler"></div>
+    </section>
+
+    <nav class="sticky top-2 z-20 kart rounded-2xl p-1.5 flex gap-1 overflow-x-auto ince-kaydirma" aria-label="Portal bölümleri">
+        {% for k, a in [('randevu', 'Randevular'), ('recete', 'Reçeteler'), ('tahlil', 'Tahliller'), ('belge', 'Belgeler'), ('gecmis', 'Geçmiş')] %}
+        <a href="#{{ k }}" class="shrink-0 inline-flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold text-teal-50 hover:bg-white/10">{{ a }}</a>
+        {% endfor %}
+    </nav>
+
+    <section id="randevu" class="kart rounded-[24px] p-5 flex flex-col gap-3 scroll-mt-20">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="font-sora text-xl font-medium">Yaklaşan randevular</h2>
+            <a href="{{ veri.online_link }}" class="inline-flex items-center h-9 px-3 rounded-xl text-[12px] font-bold text-[#04211F] bg-teal-200 hover:bg-teal-100">+ Randevu al</a>
+        </div>
+        <div id="randevular" class="flex flex-col gap-2"></div>
+        <div id="kontrolKutu"></div>
+    </section>
+
+    <section id="recete" class="kart rounded-[24px] p-5 flex flex-col gap-3 scroll-mt-20">
+        <h2 class="font-sora text-xl font-medium">Reçetelerim</h2>
+        <div id="receteler" class="flex flex-col gap-2"></div>
+    </section>
+
+    <section id="tahlil" class="kart rounded-[24px] p-5 flex flex-col gap-3 scroll-mt-20">
+        <h2 class="font-sora text-xl font-medium">Tahlil sonuçlarım</h2>
+        <p class="text-[12px] text-teal-50/60">Referans aralığı dışındaki değerler işaretlenir. Sonuçlarınızı mutlaka hekiminizle birlikte değerlendirin.</p>
+        <div id="tahliller" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+    </section>
+
+    <section id="belge" class="kart rounded-[24px] p-5 flex flex-col gap-3 scroll-mt-20">
+        <h2 class="font-sora text-xl font-medium">Belgelerim</h2>
+        <div id="belgeler" class="flex flex-col gap-2"></div>
+    </section>
+
+    <section id="gecmis" class="kart rounded-[24px] p-5 flex flex-col gap-3 scroll-mt-20">
+        <h2 class="font-sora text-xl font-medium">Muayene geçmişi</h2>
+        <div id="muayeneler" class="flex flex-col gap-2"></div>
+    </section>
+
+    <p class="text-center text-[11px] text-teal-50/40 pb-6">Bu sayfadaki bilgiler yalnızca size aittir. Ortak kullanılan cihazlarda işiniz bitince “Çıkış”a dokunun.</p>
+    <script id="portalVeri" type="application/json">{{ veri | tojson }}</script>
+{% endif %}
+</div>
+
+<div id="bildirim" role="status" aria-live="polite">
+    <div class="flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-sm font-semibold"><span data-mesaj></span></div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    function $(id) { return document.getElementById(id); }
+    function el(t, c, m) { var e = document.createElement(t); if (c) e.className = c; if (m !== undefined && m !== null) e.textContent = m; return e; }
+    var zaman;
+    function bildir(mesaj, tur) {
+        var k = $('bildirim');
+        k.firstElementChild.setAttribute('style', (tur === 'hata'
+            ? 'background: rgba(244,63,94,0.22); border-color: rgba(253,164,175,0.45); color: #FFE4E6;'
+            : 'background: rgba(45,212,191,0.2); border-color: rgba(94,234,212,0.45); color: #CCFBF1;') + ' -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);');
+        k.querySelector('[data-mesaj]').textContent = mesaj;
+        k.classList.add('gorunur');
+        clearTimeout(zaman);
+        zaman = setTimeout(function () { k.classList.remove('gorunur'); }, 4200);
+    }
+    window.Klinik = { bildir: bildir };
+    async function gonder(url, veri) {
+        var y = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(veri || {}) });
+        var g = {};
+        try { g = await y.json(); } catch (e) {}
+        if (!y.ok) throw new Error(g.hata || 'Bir sorun oluştu. Lütfen tekrar deneyin.');
+        return g;
+    }
+
+{% if not hasta %}
+    try { var tel = localStorage.getItem('portal_tel'); if (tel) $('p_tel').value = tel; } catch (x) {}
+    if ($('p_tel').value) $('p_kod').focus(); else $('p_tel').focus();
+    $('p_kod').addEventListener('input', function () {
+        this.value = this.value.replace(/\D/g, '').slice(0, 6);
+        if (this.value.length === 6 && $('p_tel').value) $('girisForm').requestSubmit();
+    });
+    $('girisForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var b = this.querySelector('[type=submit]');
+        b.disabled = true;
+        try {
+            var r = await gonder('/api/portal/giris', { telefon: $('p_tel').value, kod: $('p_kod').value });
+            try { localStorage.setItem('portal_tel', $('p_tel').value); } catch (x) {}
+            bildir(r.mesaj);
+            setTimeout(function () { location.reload(); }, 500);
+        } catch (h) { bildir(h.message, 'hata'); $('p_kod').value = ''; $('p_kod').focus(); b.disabled = false; }
+    });
+    $('kodIste').addEventListener('click', async function () {
+        if (!$('p_tel').value.trim()) { bildir('Önce telefon numaranızı yazın.', 'hata'); $('p_tel').focus(); return; }
+        var b = this;
+        b.disabled = true;
+        try { var r = await gonder('/api/portal/kod_iste', { telefon: $('p_tel').value }); bildir(r.mesaj); $('p_kod').focus(); }
+        catch (h) { bildir(h.message, 'hata'); }
+        setTimeout(function () { b.disabled = false; }, 20000);
+    });
+{% else %}
+    var V = JSON.parse($('portalVeri').textContent);
+    var saat = new Date().getHours();
+    $('selam').textContent = (saat < 12 ? 'Günaydın' : saat < 18 ? 'İyi günler' : 'İyi akşamlar') + ',';
+
+    // Sağlık bilgileri
+    var cip = $('saglikCipler');
+    if (V.hasta.kan_grubu) cip.appendChild(el('span', 'inline-flex items-center h-8 px-3 rounded-xl text-[13px] font-bold text-rose-100 bg-rose-500/25 border border-rose-300/40', 'Kan grubu ' + V.hasta.kan_grubu));
+    if (V.hasta.alerji) cip.appendChild(el('span', 'inline-flex items-center h-8 px-3 rounded-xl text-[13px] font-semibold text-amber-100 bg-amber-400/15 border border-amber-300/30', 'Alerji: ' + V.hasta.alerji));
+    if (V.hasta.kronik) cip.appendChild(el('span', 'inline-flex items-center h-8 px-3 rounded-xl text-[13px] font-semibold text-teal-50 bg-white/10', V.hasta.kronik));
+
+    function bos(kap, m) { kap.appendChild(el('div', 'py-5 text-center text-[13px] text-teal-50/50 rounded-2xl border border-dashed border-white/10', m)); }
+
+    // Randevular
+    var rk = $('randevular');
+    if (!V.yaklasan.length) bos(rk, 'Yaklaşan randevunuz yok.');
+    V.yaklasan.forEach(function (r) {
+        var s = el('div', 'flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.05]');
+        var t = el('div', 'w-16 shrink-0 text-center');
+        t.appendChild(el('div', 'font-sora text-lg font-semibold tabular-nums', r.saat));
+        t.appendChild(el('div', 'text-[11px] text-teal-100/70', r.gun));
+        s.appendChild(t);
+        var m = el('div', 'flex-1 min-w-0');
+        m.appendChild(el('div', 'text-sm font-semibold truncate', r.tarih + ' · ' + r.islem));
+        m.appendChild(el('div', 'text-[12px] text-teal-50/65 truncate', [r.hekim, r.oda].filter(Boolean).join(' · ')));
+        s.appendChild(m);
+        s.appendChild(el('span', 'shrink-0 inline-flex items-center h-6 px-2 rounded-full text-[11px] font-bold ' + (r.durum === 'Onaylandı' ? 'bg-teal-300/20 text-teal-100' : 'bg-amber-300/20 text-amber-100'), r.durum));
+        rk.appendChild(s);
+    });
+    var kontrol = V.muayeneler.filter(function (m) { return m.kontrol_gelecek; })[0];
+    if (kontrol) {
+        var kk = el('div', 'flex items-center gap-3 p-3.5 rounded-2xl bg-pink-400/10 border border-pink-300/25');
+        kk.appendChild(el('span', 'text-[13px] text-pink-50', 'Hekiminiz ' + kontrol.kontrol + ' tarihinde kontrol önerdi.'));
+        if (!V.yaklasan.length) { var a = el('a', 'ml-auto shrink-0 inline-flex items-center h-9 px-3 rounded-xl text-[12px] font-bold text-[#4A0D2E] bg-pink-200', 'Randevu al'); a.href = V.online_link; kk.appendChild(a); }
+        $('kontrolKutu').appendChild(kk);
+    }
+
+    // Reçeteler
+    var rc = $('receteler');
+    if (!V.receteler.length) bos(rc, 'Henüz reçeteniz yok.');
+    V.receteler.forEach(function (r, i) {
+        var d = el('details', 'group rounded-2xl bg-white/[0.05] overflow-hidden');
+        if (i === 0) d.open = true;
+        var sm = el('summary', 'cursor-pointer list-none flex items-center gap-3 p-3.5');
+        var m = el('div', 'flex-1 min-w-0');
+        m.appendChild(el('div', 'text-sm font-semibold truncate', r.tani || 'Reçete'));
+        m.appendChild(el('div', 'text-[12px] text-teal-50/65', r.tarih + ' · ' + r.kalemler.length + ' ilaç' + (r.hekim ? ' · ' + r.hekim : '')));
+        sm.appendChild(m);
+        sm.appendChild(el('span', 'text-teal-200 transition-transform group-open:rotate-180', '▾'));
+        d.appendChild(sm);
+        var ic = el('div', 'px-3.5 pb-3.5 flex flex-col gap-2');
+        r.kalemler.forEach(function (k) {
+            var x = el('div', 'p-3 rounded-xl bg-black/20');
+            x.appendChild(el('div', 'text-[14px] font-semibold', k.ad));
+            x.appendChild(el('div', 'mt-0.5 text-[13px] text-teal-100', [k.doz, k.kullanim, k.sure].filter(Boolean).join(' · ')));
+            ic.appendChild(x);
+        });
+        if (r.notlar) ic.appendChild(el('div', 'text-[13px] text-amber-100', 'Hekim notu: ' + r.notlar));
+        var y = el('a', 'self-start inline-flex items-center h-9 px-3 rounded-xl text-[12px] font-semibold text-white bg-white/10 border border-white/15', 'Reçeteyi görüntüle / PDF');
+        y.href = '/portal/recete/' + r.id;
+        ic.appendChild(y);
+        d.appendChild(ic);
+        rc.appendChild(d);
+    });
+
+    // Tahliller
+    var tk = $('tahliller');
+    if (!V.lab.length) { tk.className = ''; bos(tk, 'Henüz tahlil sonucu girilmemiş.'); }
+    var DURUM = { dusuk: ['↓ Düşük', 'text-sky-100 bg-sky-400/20', '#7DD3FC'], yuksek: ['↑ Yüksek', 'text-rose-100 bg-rose-500/25', '#FB7185'], normal: ['Normal', 'text-teal-100 bg-teal-400/15', '#5EEAD4'] };
+    V.lab.sort(function (a, b) { return (a.son.durum === 'normal') - (b.son.durum === 'normal'); }).forEach(function (t) {
+        var d = DURUM[t.son.durum];
+        var k = el('div', 'flex flex-col gap-2 p-3.5 rounded-2xl bg-white/[0.05]');
+        var ust = el('div', 'flex items-center justify-between gap-2');
+        ust.appendChild(el('span', 'text-[13px] font-semibold text-teal-50', t.ad));
+        ust.appendChild(el('span', 'inline-flex items-center h-6 px-2 rounded-full text-[11px] font-bold ' + d[1], d[0]));
+        k.appendChild(ust);
+        var alt = el('div', 'flex items-end justify-between gap-3');
+        var dv = el('div', '');
+        var deger = el('span', 'font-sora text-2xl font-medium tabular-nums', Number(t.son.deger).toLocaleString('tr-TR'));
+        deger.style.color = t.son.durum === 'normal' ? '#fff' : d[2];
+        dv.appendChild(deger);
+        dv.appendChild(el('span', 'ml-1 text-[12px] text-teal-50/60', t.birim));
+        dv.appendChild(el('div', 'text-[11px] text-teal-50/55', t.son.tarih.split('-').reverse().join('.') +
+            (t.son.ref_min != null || t.son.ref_max != null ? ' · Referans ' + (t.son.ref_min != null ? t.son.ref_min : '') + '–' + (t.son.ref_max != null ? t.son.ref_max : '') : '')));
+        alt.appendChild(dv);
+        if (t.seri.length > 1) {
+            var W = 110, H = 36, mn = Math.min.apply(null, t.seri), mx = Math.max.apply(null, t.seri), r = (mx - mn) || 1;
+            var p = t.seri.map(function (v, i) { return (i ? 'L' : 'M') + (i * W / (t.seri.length - 1)).toFixed(1) + ' ' + (H - 4 - (v - mn) / r * (H - 8)).toFixed(1); }).join(' ');
+            var svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><path d="' + p + '" fill="none" stroke="' + d[2] + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            var sk = el('span', 'shrink-0'); sk.innerHTML = svg; sk.title = t.seri.length + ' ölçüm: ' + t.tarihler[0] + ' – ' + t.tarihler[t.tarihler.length - 1];
+            alt.appendChild(sk);
+        }
+        k.appendChild(alt);
+        tk.appendChild(k);
+    });
+
+    // Belgeler
+    var bk = $('belgeler');
+    if (!V.dosyalar.length) bos(bk, 'Paylaşılmış belge yok.');
+    V.dosyalar.forEach(function (d) {
+        var a = el('a', 'flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.05] hover:bg-white/[0.09]');
+        a.href = '/portal/dosya/' + d.id; a.target = '_blank'; a.rel = 'noopener';
+        a.appendChild(el('span', 'w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-[11px] font-bold text-[#04211F] bg-teal-200', d.gorsel ? 'IMG' : 'PDF'));
+        var m = el('div', 'flex-1 min-w-0');
+        m.appendChild(el('div', 'text-sm font-semibold truncate', d.ad));
+        m.appendChild(el('div', 'text-[12px] text-teal-50/60', d.tur + ' · ' + d.tarih));
+        a.appendChild(m);
+        a.appendChild(el('span', 'text-teal-200', '↗'));
+        bk.appendChild(a);
+    });
+
+    // Muayene geçmişi
+    var mk = $('muayeneler');
+    if (!V.muayeneler.length) bos(mk, 'Muayene kaydı yok.');
+    V.muayeneler.forEach(function (m) {
+        var s = el('div', 'flex items-center gap-3 p-3 rounded-xl bg-white/[0.04]');
+        s.appendChild(el('span', 'w-20 shrink-0 text-[12px] text-teal-100/70 tabular-nums', m.tarih));
+        var b = el('div', 'flex-1 min-w-0');
+        b.appendChild(el('div', 'text-[13px] font-semibold truncate', m.tani));
+        if (m.hekim) b.appendChild(el('div', 'text-[11px] text-teal-50/55', m.hekim));
+        s.appendChild(b);
+        mk.appendChild(s);
+    });
+
+    $('cikis').addEventListener('click', async function () {
+        try { await gonder('/api/portal/cikis'); } catch (x) {}
+        location.reload();
+    });
+    // 30 dk hareketsizlikte sunucu oturumu kapatır; sayfa da kendini yeniler
+    var hareket = Date.now();
+    ['click', 'touchstart', 'keydown', 'scroll'].forEach(function (o) { window.addEventListener(o, function () { hareket = Date.now(); }, { passive: true }); });
+    setInterval(function () { if (Date.now() - hareket > 30 * 60 * 1000) location.reload(); }, 60000);
+{% endif %}
+})();
+</script>
+<script src="{{ url_for('static', filename='js/pwa.js') }}"></script>
+</body>
+</html>

@@ -123,6 +123,22 @@ Bunun yanında güzel görünen ama işe yaramayan bir demo değil — **alerji 
 </details>
 
 <details open>
+<summary><b>📲 Hasta portalı ve uygulama olarak yükleme (PWA)</b></summary>
+
+- Hasta, telefonundan **tek kullanımlık 6 haneli kodla** giriş yapıp reçetelerini, randevularını, tahlil sonuçlarını, belgelerini ve muayene geçmişini görür
+- Kod klinik tarafından WhatsApp ile gönderilir (15 dk geçerli, saklanırken özetlenir, hız sınırlı); hasta portaldan kod isteyebilir, istek bildirim merkezine düşer
+- Klinik paneli ve portal **ana ekrana yüklenebilir**: manifest, ikonlar, service worker ve çevrimdışı sayfası; hasta verisi cihazda önbelleğe alınmaz
+</details>
+
+<details open>
+<summary><b>⚡ Muayene şablonları, kontrol takibi ve bildirim merkezi</b></summary>
+
+- Sık tanılar için **tek tıkla** bulgu, tedavi, kontrol tarihi ve hazır reçete; muayeneden ya da reçeteden şablon kaydetme, kullanım sayısına göre sıralama
+- Kontrol tarihi gelen ama randevu almamış hastalar listesi; **WhatsApp ile “kontrolünüz geldi”** mesajı, düzenlenebilir şablon
+- Üst bardaki **zil**: online talepler, gecikmiş hastalar, hatırlatılmamış randevular, kontroller, kritik stok, açık bakiyeler, referans dışı tahliller ve portal kod istekleri
+</details>
+
+<details open>
 <summary><b>🧪 Tahlil ve görüntüleme dosyaları</b></summary>
 
 - Hasta dosyasına **PDF, JPG, PNG** yükleme (sürükle-bırak veya telefonda kamerayla); belge içeriği uzantıyla doğrulanır, dosyalar yalnızca hekime gösterilir
@@ -278,6 +294,8 @@ Tarayıcıda **http://127.0.0.1:5000** adresini açın. Windows'ta `baslat.bat` 
 | Sekreter | `sekreter@klinik.local` | `klinik123` |
 | İkinci hekim | `selin@klinik.local` | `klinik123` |
 
+> **Hasta portalı** (`/portal`): hasta dosyasında “⋯ → Hasta portalı giriş kodu” ile kod üretip hastanın telefon numarası ve kodla giriş yapın.
+
 > Demo verisi yüklemezseniz ilk açılışta **kurulum ekranı** gelir ve ilk doktor hesabını siz oluşturursunuz.
 
 **İpuçları**
@@ -295,7 +313,7 @@ Tarayıcıda **http://127.0.0.1:5000** adresini açın. Windows'ta `baslat.bat` 
 ```
 butik-klinik-saas/
 ├── app.py                 # Flask uygulaması: sayfalar, REST API, güvenlik, yedekleme, kasa, online randevu, stok, raporlar
-├── models.py              # SQLAlchemy modelleri (19 tablo)
+├── models.py              # SQLAlchemy modelleri (22 tablo)
 ├── ilaclar.py             # İlaç listesi ve alerji / etkileşim / hastalık kuralları
 ├── requirements.txt
 ├── static/
@@ -310,6 +328,8 @@ butik-klinik-saas/
 │   │   ├── tahlil.js      # Belge yükleme, lab değerleri ve grafikleri
 │   │   ├── sira.js        # Bekleme salonu sıra yönetimi
 │   │   ├── komut.js       # Ctrl+K komut paleti, telefondan aç
+│   │   ├── sablon.js / kontrol.js / bildirim.js / pwa.js
+│   ├── sw.js              # Service worker (yalnızca uygulama kabuğu)
 │   │   ├── dikte.js       # Türkçe sesli dikte
 │   └── models/insan.bin   # Sıkıştırılmış 3D insan modeli (MakeHuman, CC0)
 ├── templates/             # Jinja2 sayfaları + yazdırılabilir belgeler + salon.html (TV ekranı)

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Bağlantı yok | {{ klinik_adi }}</title>
+    <meta name="theme-color" content="#1E0B4B">
+    <style>
+        html, body { margin: 0; height: 100%; background: radial-gradient(700px 500px at 50% 30%, #2A1B6E, #07051A 70%); color: #fff;
+            font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+        main { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px; text-align: center; }
+        .kure { width: 96px; height: 96px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #fff, #A78BFA 40%, #4C1D95 85%);
+            box-shadow: 0 0 60px rgba(167,139,250,.6); animation: nefes 3s ease-in-out infinite; }
+        @keyframes nefes { 50% { transform: scale(.92); opacity: .8; } }
+        h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.02em; }
+        p { margin: 0; max-width: 420px; color: #C4B5FD; line-height: 1.55; }
+        button { margin-top: 8px; height: 48px; padding: 0 28px; border: 0; border-radius: 14px; background: #fff; color: #1E0B4B;
+            font: 700 15px inherit; cursor: pointer; }
+        small { color: rgba(196,181,253,.7); }
+        @media (prefers-reduced-motion: reduce) { .kure { animation: none; } }
+    </style>
+</head>
+<body>
+<main>
+    <div class="kure" aria-hidden="true"></div>
+    <h1>Bağlantı kurulamadı</h1>
+    <p>{{ klinik_adi }} sunucusuna ulaşılamıyor. Klinik bilgisayarının açık olduğundan ve aynı Wi-Fi ağına bağlı olduğunuzdan emin olun.</p>
+    <button type="button" onclick="location.reload()">Tekrar dene</button>
+    <small>Hasta bilgileri güvenlik için cihazınızda saklanmaz; görüntülemek için bağlantı gerekir.</small>
+</main>
+<script>window.addEventListener('online', function () { location.reload(); });</script>
+</body>
+</html>

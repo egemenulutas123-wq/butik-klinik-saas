@@ -1,6 +1,7 @@
 from datetime import datetime, date, time, timedelta
 from functools import wraps
 import csv
+import hashlib
 import io
 import json
 import math
@@ -18,7 +19,7 @@ from sqlalchemy import inspect, text, func, case
 
 from models import (db, Doktor, Hasta, Randevu, Muayene, Recete, ReceteKalemi, Vital, IslemKaydi, ROLLER,
                     Ayar, OnlineTalep, Tarife, KasaHareketi, VucutIsareti, Malzeme, StokHareketi, IslemMalzemesi,
-                    HekimIzin, HastaDosyasi, LabSonuc)
+                    HekimIzin, HastaDosyasi, LabSonuc, MuayeneSablonu, PortalKodu, PortalIstegi)
 from ilaclar import recete_kontrol, ilac_listesi, ilac_bul, UYARI_NOTU
 
 app = Flask(__name__)
@@ -101,12 +102,13 @@ ISLEM_ADLARI = {
     'goruntuleme': 'Görüntüleme', 'olusturma': 'Oluşturma', 'guncelleme': 'Güncelleme', 'silme': 'Silme',
     'yazdirma': 'Yazdırma', 'disa_aktarma': 'Dışa aktarma', 'riza': 'Rıza', 'yedek': 'Yedekleme',
     'geri_yukleme': 'Geri yükleme', 'yetki': 'Yetki', 'tahsilat': 'Tahsilat', 'iptal': 'İptal',
-    'online': 'Online talep', 'ayar': 'Ayar', 'hatirlatma': 'Hatırlatma', 'stok': 'Stok', 'indirme': 'İndirme',
+    'online': 'Online talep', 'ayar': 'Ayar', 'hatirlatma': 'Hatırlatma', 'stok': 'Stok', 'indirme': 'İndirme', 'portal': 'Hasta portalı',
 }
 HEDEF_ADLARI = {'hasta': 'Hasta', 'randevu': 'Randevu', 'muayene': 'Muayene', 'recete': 'Reçete',
                 'vital': 'Vital', 'kullanici': 'Kullanıcı', 'yedek': 'Yedek', 'oturum': 'Oturum', 'gunluk': 'Günlük',
                 'kasa': 'Kasa', 'talep': 'Online talep', 'isaret': 'Vücut işareti', 'ayar': 'Ayar',
-                'malzeme': 'Malzeme', 'rapor': 'Rapor', 'dosya': 'Hasta dosyası', 'lab': 'Tahlil sonucu'}
+                'malzeme': 'Malzeme', 'rapor': 'Rapor', 'dosya': 'Hasta dosyası', 'lab': 'Tahlil sonucu',
+                'sablon': 'Muayene şablonu'}
 YONTEMLER = ['Nakit', 'Kart', 'Havale']
 
 
@@ -250,7 +252,10 @@ ACIK_UC_NOKTALAR = {'giris', 'kurulum', 'api_giris', 'api_kurulum', 'static',
                     'online_randevu', 'online_aydinlatma', 'online_takvim', 'online_saatler', 'online_talep_olustur',
                     'online_takip', 'online_takip_ics', 'online_talep_iptal',
                     # Bekleme salonu TV ekranı (gizli anahtarlı bağlantı)
-                    'salon_ekrani', 'salon_durum'}
+                    'salon_ekrani', 'salon_durum',
+                    # Hasta portalı ve PWA dosyaları
+                    'portal', 'portal_kod_iste', 'portal_giris', 'portal_cikis', 'portal_dosya', 'portal_recete',
+                    'portal_manifest', 'pwa_manifest', 'service_worker', 'cevrimdisi'}
 _hatali_girisler = {}  # e-posta -> [deneme sayısı, kilit bitiş zamanı]
 
 
@@ -589,6 +594,8 @@ def hasta_detay(hasta_id):
             'turler': HastaDosyasi.TURLER,
             'bugun': date.today().isoformat(),
         } if doktor else None,
+        sablonlar_json=sablon_listesi() if doktor else [],
+        portal_ac=bool(request.args.get('portal')),
     )
 
 
@@ -628,7 +635,7 @@ def randevular_sayfasi():
         talepler_json=[talep_sozluk(t, tum_hastalar) for t in
                        OnlineTalep.query.filter_by(durum='Bekliyor').order_by(OnlineTalep.olusturma.asc()).all()],
         online_ayar=online_ayarlari(),
-        online_link=url_for('online_randevu', _external=True),
+        online_link=disaridan_url('online_randevu'),
         GUNLER=GUNLER,
         hekimler_json=[hekim_sozluk(h) for h in hekimler()],
         varsayilan_hekim=(g.kullanici.id if g.kullanici.doktor_mu else (hekimler() or [None])[0].id if hekimler() else None),
@@ -1111,6 +1118,11 @@ def muayene_ekle():
         kontrol_tarihi=kontrol,
         tarih=datetime.now(),
     )
+    sablon = db.session.get(MuayeneSablonu, int(veri['sablon_id'])) if str(veri.get('sablon_id') or '').isdigit() else None
+    if sablon:
+        muayene.sablon_id = sablon.id
+        sablon.kullanim = (sablon.kullanim or 0) + 1
+        sablon.son_kullanim = datetime.now()
     db.session.add(muayene)
     db.session.flush()
 
@@ -2898,7 +2910,7 @@ def sira_listesi():
     randevular = bugun_sira(request.args.get('doktor_id', type=int))
     bekleme = tahmini_bekleme(randevular)
     return jsonify({'liste': [sira_sozluk(r, bekleme) for r in randevular],
-                    'salon_link': url_for('salon_ekrani', anahtar=salon_anahtari(), _external=True),
+                    'salon_link': disaridan_url('salon_ekrani', anahtar=salon_anahtari()),
                     'ayar': {'sure': int(ayar('salon_sure') or 15), 'mesaj': ayar('salon_mesaj'), 'isim': ayar('salon_isim')}})
 
 
@@ -2962,7 +2974,7 @@ def salon_ayar_kaydet():
     islem_kaydet('ayar', 'ayar', None, 'Bekleme salonu ayarları güncellendi' + (' (ekran bağlantısı yenilendi)' if v.get('anahtar_yenile') else ''))
     db.session.commit()
     return jsonify({'mesaj': 'Bekleme salonu ayarları kaydedildi.',
-                    'salon_link': url_for('salon_ekrani', anahtar=salon_anahtari(), _external=True)})
+                    'salon_link': disaridan_url('salon_ekrani', anahtar=salon_anahtari())})
 
 
 @app.route('/salon/<anahtar>')
@@ -3265,6 +3277,16 @@ def yerel_ip():
             return '127.0.0.1'
 
 
+def disaridan_url(endpoint, **kw):
+    """Bağlantı bu bilgisayardan (127.0.0.1) üretildiyse telefonların açabileceği Wi-Fi adresine çevirir."""
+    yol = url_for(endpoint, **kw)
+    host = request.host.split(':')[0]
+    if host in ('127.0.0.1', 'localhost'):
+        port = request.host.rsplit(':', 1)[1] if ':' in request.host else '80'
+        return f'{request.scheme}://{yerel_ip()}:{port}{yol}'
+    return request.host_url.rstrip('/') + yol
+
+
 @app.route('/api/telefon_adresi')
 def telefon_adresi():
     port = request.host.rsplit(':', 1)[1] if ':' in request.host else ('443' if request.scheme == 'https' else '80')
@@ -3273,6 +3295,500 @@ def telefon_adresi():
     adres = f'{request.scheme}://{ip}:{port}' if yerel_mi or request.host.split(':')[0] != ip else request.host_url.rstrip('/')
     return jsonify({'adres': adres, 'ip': ip, 'dis_erisim': app.config.get('LAN_ACIK', not yerel_mi),
                     'online_adres': adres + url_for('online_randevu')})
+
+
+
+# ------------------------------------------------------------------
+# Muayene şablonları
+# ------------------------------------------------------------------
+def sablon_kalemleri_temizle(liste):
+    temiz = []
+    for k in (liste if isinstance(liste, list) else [])[:15]:
+        if not isinstance(k, dict):
+            continue
+        ad = re.sub(r'\s+', ' ', str(k.get('ilac_adi') or '').strip())[:120]
+        if not ad:
+            continue
+        try:
+            adet = max(1, min(10, int(k.get('adet') or 1)))
+        except (TypeError, ValueError):
+            adet = 1
+        temiz.append({'ilac_adi': ad, 'doz': str(k.get('doz') or '').strip()[:60],
+                      'kullanim': str(k.get('kullanim') or '').strip()[:120],
+                      'sure': str(k.get('sure') or '').strip()[:40], 'adet': adet})
+    return temiz
+
+
+def sablon_listesi():
+    return [s.sozluk() for s in MuayeneSablonu.query.order_by(MuayeneSablonu.kullanim.desc(), MuayeneSablonu.ad.asc()).all()]
+
+
+@app.route('/api/sablonlar')
+@doktor_gerekli
+def sablonlar():
+    return jsonify({'sablonlar': sablon_listesi()})
+
+
+@app.route('/api/sablon', methods=['POST'])
+@doktor_gerekli
+def sablon_kaydet():
+    v = request.get_json(silent=True) or {}
+    ad = re.sub(r'\s+', ' ', (v.get('ad') or v.get('tani') or '').strip())[:80]
+    if len(ad) < 2:
+        return hata('Şablona bir ad verin.')
+    yalniz_recete = bool(v.get('yalniz_recete'))
+    kalemler = sablon_kalemleri_temizle(v.get('kalemler'))
+    if yalniz_recete and not kalemler:
+        return hata('Şablona kaydetmek için reçeteye en az bir ilaç ekleyin.')
+    kontrol_gun = v.get('kontrol_gun')
+    try:
+        kontrol_gun = int(kontrol_gun) if kontrol_gun not in (None, '') else None
+    except (TypeError, ValueError):
+        return hata('Kontrol günü sayı olmalıdır.')
+    if kontrol_gun is not None and not 1 <= kontrol_gun <= 365:
+        return hata('Kontrol süresi 1–365 gün arasında olmalıdır.')
+    mevcut = next((s for s in MuayeneSablonu.query.all() if sade(s.ad) == sade(ad)), None)
+    if mevcut and not v.get('uzerine_yaz') and not yalniz_recete:
+        return jsonify({'hata': f'“{mevcut.ad}” adında bir şablon zaten var. Üzerine yazılsın mı?', 'var': True}), 409
+    s = mevcut or MuayeneSablonu(ad=ad, olusturan_id=g.kullanici.id)
+    tani = re.sub(r'\s+', ' ', (v.get('tani') or '').strip())[:150]
+    if yalniz_recete:
+        s.kalemler = json.dumps(kalemler, ensure_ascii=False)
+        s.recete_notu = (v.get('recete_notu') or '').strip()[:300] or s.recete_notu
+        s.tani = s.tani or tani or ad
+    else:
+        if not tani:
+            return hata('Şablon için tanı gerekli.')
+        s.ad, s.tani = ad, tani
+        s.bulgular = (v.get('bulgular') or '').strip() or None
+        s.tedavi = (v.get('tedavi') or '').strip() or None
+        s.kontrol_gun = kontrol_gun
+        if 'kalemler' in v:
+            s.kalemler = json.dumps(kalemler, ensure_ascii=False)
+    if not mevcut:
+        db.session.add(s)
+    db.session.flush()
+    islem_kaydet('guncelleme' if mevcut else 'olusturma', 'sablon', s.id, f'Muayene şablonu: {s.ad}')
+    db.session.commit()
+    mesaj = (f'Reçete “{s.ad}” şablonuna eklendi ({len(kalemler)} ilaç).' if yalniz_recete
+             else f'“{s.ad}” şablonu {"güncellendi" if mevcut else "kaydedildi"}.')
+    return jsonify({'mesaj': mesaj, 'sablon': s.sozluk(), 'sablonlar': sablon_listesi()}), 200 if mevcut else 201
+
+
+@app.route('/api/sablon/<int:sablon_id>', methods=['PUT'])
+@doktor_gerekli
+def sablon_guncelle(sablon_id):
+    s = db.get_or_404(MuayeneSablonu, sablon_id)
+    v = request.get_json(silent=True) or {}
+    if 'ad' in v:
+        ad = re.sub(r'\s+', ' ', (v.get('ad') or '').strip())[:80]
+        if len(ad) < 2:
+            return hata('Şablona bir ad verin.')
+        if any(x.id != s.id and sade(x.ad) == sade(ad) for x in MuayeneSablonu.query.all()):
+            return hata('Bu adda başka bir şablon var.', 409)
+        s.ad = ad
+    if 'kalemler' in v:
+        s.kalemler = json.dumps(sablon_kalemleri_temizle(v.get('kalemler')), ensure_ascii=False)
+    db.session.commit()
+    return jsonify({'mesaj': 'Şablon güncellendi.', 'sablonlar': sablon_listesi()})
+
+
+@app.route('/api/sablon/<int:sablon_id>', methods=['DELETE'])
+@doktor_gerekli
+def sablon_sil(sablon_id):
+    s = db.get_or_404(MuayeneSablonu, sablon_id)
+    islem_kaydet('silme', 'sablon', s.id, f'Muayene şablonu silindi: {s.ad}')
+    db.session.delete(s)
+    db.session.commit()
+    return jsonify({'mesaj': f'“{s.ad}” şablonu silindi.', 'sablonlar': sablon_listesi()})
+
+
+# ------------------------------------------------------------------
+# Kontrol takibi: kontrol tarihi gelen ve randevu almamış hastalar
+# ------------------------------------------------------------------
+VARSAYILAN_AYARLAR['kontrol_sablonu'] = (
+    'Merhaba {ad}, {klinik} olarak kontrol muayenenizin zamanı geldi ({tarih}). Size uygun bir gün için bize '
+    'yazabilir ya da {link} adresinden online randevu alabilirsiniz. Sağlıklı günler dileriz.')
+
+
+def kontrol_metni(m, sablon=None):
+    degerler = {'ad': m.hasta.ad_soyad.split()[0], 'adsoyad': m.hasta.ad_soyad, 'klinik': KLINIK_ADI,
+                'tarih': kisa_tarih(m.kontrol_tarihi), 'hekim': m.doktor.gorunen_ad if m.doktor else '',
+                'link': disaridan_url('online_randevu')}
+    try:
+        return (sablon or ayar('kontrol_sablonu')).format(**degerler)
+    except (KeyError, IndexError, ValueError):
+        return VARSAYILAN_AYARLAR['kontrol_sablonu'].format(**degerler)
+
+
+def kontrol_listesi(dahil_kapali=False):
+    bugun = date.today()
+    q = Muayene.query.filter(Muayene.kontrol_tarihi.isnot(None), Muayene.kontrol_tarihi <= bugun + timedelta(days=7),
+                             Muayene.kontrol_tarihi >= bugun - timedelta(days=60))
+    if not dahil_kapali:
+        q = q.filter(db.or_(Muayene.kontrol_durum.is_(None), Muayene.kontrol_durum != 'kapandi'))
+    adaylar = q.all()
+    if not adaylar:
+        return []
+    hids = {m.hasta_id for m in adaylar}
+    son_muayene = dict(db.session.query(Muayene.hasta_id, func.max(Muayene.tarih)).filter(Muayene.hasta_id.in_(hids))
+                       .group_by(Muayene.hasta_id).all())
+    randevular = {}
+    for r in Randevu.query.filter(Randevu.hasta_id.in_(hids), Randevu.durum != 'İptal',
+                                  Randevu.tarih >= bugun - timedelta(days=90)).all():
+        randevular.setdefault(r.hasta_id, []).append(r)
+    liste = []
+    for m in adaylar:
+        if son_muayene.get(m.hasta_id) and son_muayene[m.hasta_id] > m.tarih:
+            continue   # daha yeni bir muayene var; bu kontrol yerini buldu
+        if any(r.id != m.randevu_id and r.tarih > m.tarih.date() and r.durum in ('Bekliyor', 'Onaylandı', 'Tamamlandı')
+               for r in randevular.get(m.hasta_id, [])):
+            continue   # muayeneden sonra randevu alınmış
+        fark = (m.kontrol_tarihi - bugun).days
+        liste.append({'muayene_id': m.id, 'hasta_id': m.hasta_id, 'ad_soyad': m.hasta.ad_soyad,
+                      'bas_harfler': m.hasta.bas_harfler, 'telefon': m.hasta.telefon,
+                      'tani': m.tani if g.kullanici and g.kullanici.doktor_mu else None,
+                      'kontrol_tarihi': m.kontrol_tarihi.isoformat(), 'kontrol_metin': kisa_tarih(m.kontrol_tarihi),
+                      'muayene_tarihi': kisa_tarih(m.tarih), 'fark': fark,
+                      'durum': 'gecikti' if fark < 0 else 'bugun' if fark == 0 else 'yaklasiyor',
+                      'hekim': m.doktor.gorunen_ad if m.doktor else '', 'doktor_id': m.doktor_id,
+                      'hatirlatildi': m.kontrol_hatirlatma.strftime('%d.%m %H:%M') if m.kontrol_hatirlatma else None,
+                      'kapandi': m.kontrol_durum == 'kapandi',
+                      'whatsapp': whatsapp_link(m.hasta.telefon, kontrol_metni(m)), 'metin': kontrol_metni(m)})
+    liste.sort(key=lambda x: (x['kapandi'], x['fark']))
+    return liste
+
+
+@app.route('/api/kontroller')
+def kontroller():
+    return jsonify({'liste': kontrol_listesi(), 'sablon': ayar('kontrol_sablonu')})
+
+
+@app.route('/api/kontrol/<int:muayene_id>', methods=['POST'])
+def kontrol_islem(muayene_id):
+    m = db.get_or_404(Muayene, muayene_id)
+    islem = (request.get_json(silent=True) or {}).get('islem')
+    if islem == 'hatirlatildi':
+        m.kontrol_durum, m.kontrol_hatirlatma = 'hatirlatildi', datetime.now()
+        islem_kaydet('hatirlatma', 'muayene', m.id, f'{m.hasta.ad_soyad}: kontrol hatırlatması gönderildi')
+        mesaj = f'{m.hasta.ad_soyad} için kontrol hatırlatması işaretlendi.'
+    elif islem == 'kapat':
+        m.kontrol_durum = 'kapandi'
+        islem_kaydet('guncelleme', 'muayene', m.id, f'{m.hasta.ad_soyad}: kontrol takibi kapatıldı')
+        mesaj = f'{m.hasta.ad_soyad} kontrol listesinden çıkarıldı.'
+    elif islem == 'geri_al':
+        m.kontrol_durum, m.kontrol_hatirlatma = None, None
+        mesaj = 'Geri alındı.'
+    else:
+        return hata('Geçersiz işlem.')
+    db.session.commit()
+    return jsonify({'mesaj': mesaj})
+
+
+@app.route('/api/kontrol_sablonu', methods=['POST'])
+def kontrol_sablonu_kaydet():
+    sablon = ((request.get_json(silent=True) or {}).get('sablon') or '').strip()
+    if not 20 <= len(sablon) <= 600:
+        return hata('Mesaj 20–600 karakter olmalıdır.')
+    try:
+        sablon.format(ad='', adsoyad='', klinik='', tarih='', hekim='', link='')
+    except (KeyError, IndexError, ValueError):
+        return hata('Mesajda yalnızca {ad}, {adsoyad}, {klinik}, {tarih}, {hekim}, {link} kullanılabilir.')
+    ayar_yaz('kontrol_sablonu', sablon)
+    islem_kaydet('ayar', 'ayar', None, 'Kontrol hatırlatma mesajı güncellendi')
+    db.session.commit()
+    return jsonify({'mesaj': 'Kontrol mesajı kaydedildi.', 'liste': kontrol_listesi()})
+
+
+# ------------------------------------------------------------------
+# Bildirim merkezi
+# ------------------------------------------------------------------
+@app.route('/api/bildirimler')
+def bildirimler():
+    bugun, simdi = date.today(), datetime.now()
+    doktor = g.kullanici.doktor_mu
+    b = []
+
+    def ekle(tur, seviye, baslik, metin, url, sayi, ikon):
+        b.append({'anahtar': f'{tur}:{sayi}:{bugun.isoformat()}', 'tur': tur, 'seviye': seviye, 'baslik': baslik,
+                  'metin': metin, 'url': url, 'sayi': sayi, 'ikon': ikon})
+
+    for p in PortalIstegi.query.filter_by(durum='Bekliyor').order_by(PortalIstegi.olusturma.desc()).limit(3).all():
+        ekle(f'portal{p.id}', 'acil', f'{p.hasta.ad_soyad} portal kodu istedi',
+             f'{p.olusturma.strftime("%H:%M")} · Hasta dosyasından kodu WhatsApp ile gönderin.', f'/hasta/{p.hasta_id}?portal=1', 1, 'anahtar')
+    talep = OnlineTalep.query.filter_by(durum='Bekliyor').count()
+    if talep:
+        ekle('online', 'acil', f'{talep} online randevu talebi onay bekliyor', 'Onaylayın ya da başka saat önerin.',
+             '/randevular#onlineBolum', talep, 'kure')
+    gecikenler = [r for r in Randevu.query.filter(Randevu.tarih == bugun, Randevu.durum.in_(['Bekliyor', 'Onaylandı']),
+                                                   Randevu.geldi.is_(None)).all()
+                  if datetime.combine(bugun, datetime.strptime(r.saat, '%H:%M').time()) < simdi - timedelta(minutes=15)]
+    if gecikenler:
+        ekle('gecikme', 'uyari', f'{len(gecikenler)} hasta randevu saatini geçti',
+             ', '.join(r.hasta.ad_soyad for r in gecikenler[:3]) + ' · geldi ya da gelmedi olarak işaretleyin.', '/#siraBolum',
+             len(gecikenler), 'saat')
+    salon = Randevu.query.filter(Randevu.tarih == bugun, Randevu.geldi.isnot(None), Randevu.cagrildi.is_(None),
+                                 Randevu.durum.in_(['Bekliyor', 'Onaylandı'])).count()
+    if salon:
+        ekle('salon', 'bilgi', f'Salonda {salon} hasta bekliyor', 'Sırası gelince panelden çağırın.', '/#siraBolum', salon, 'ekran')
+    for gun in (1, 2, 3):
+        d = bugun + timedelta(days=gun)
+        aktif = Randevu.query.filter(Randevu.tarih == d, Randevu.durum.in_(['Bekliyor', 'Onaylandı'])).all()
+        if aktif:
+            eksik = [r for r in aktif if not r.hatirlatma]
+            if eksik:
+                ekle('hatirlatma', 'uyari', f'{GUNLER[d.weekday()]} günü {len(eksik)} hastaya hatırlatma gönderilmedi',
+                     f'{kisa_tarih(d)} · toplam {len(aktif)} randevu', '/randevular#hatirlatma', len(eksik), 'zil')
+            break
+    kontrol = [k for k in kontrol_listesi() if k['fark'] <= 0 and not k['hatirlatildi']]
+    if kontrol:
+        ekle('kontrol', 'uyari', f'{len(kontrol)} hastanın kontrol zamanı geldi',
+             ', '.join(k['ad_soyad'] for k in kontrol[:3]) + ' · randevu almamışlar.', '/randevular#kontrol', len(kontrol), 'yenile')
+    kritik = [m for m in Malzeme.query.filter_by(aktif=True).all() if m.durum != 'normal']
+    if kritik:
+        ekle('stok', 'acil' if any(m.durum == 'tukendi' for m in kritik) else 'uyari',
+             f'{len(kritik)} malzeme kritik seviyede', ', '.join(m.ad for m in kritik[:3]), '/stok', len(kritik), 'kutu')
+    skt = [m for m in Malzeme.query.filter_by(aktif=True).all() if m.skt_gun is not None and m.skt_gun <= 30 and m.miktar > 0]
+    if skt:
+        ekle('skt', 'bilgi', f'{len(skt)} malzemenin son kullanma tarihi yaklaşıyor', ', '.join(m.ad for m in skt[:3]),
+             '/stok', len(skt), 'takvim')
+    alacak = [a for a in alacak_listesi() if a['bakiye'] > 0]
+    if alacak:
+        ekle('alacak', 'bilgi', f'{len(alacak)} hastada açık bakiye', f'Toplam {tl(sum(a["bakiye"] for a in alacak))}',
+             '/kasa#alacak', len(alacak), 'para')
+    if doktor:
+        disari = [l for l in LabSonuc.query.filter(LabSonuc.tarih >= bugun - timedelta(days=7)).all() if l.durum != 'normal']
+        if disari:
+            hastalar = {}
+            for l in disari:
+                hastalar.setdefault(l.hasta_id, []).append(l)
+            ilk = next(iter(hastalar))
+            ekle('lab', 'uyari', f'Son 7 günde {len(disari)} referans dışı tahlil değeri',
+                 ', '.join(f'{v[0].hasta.ad_soyad} ({v[0].ad})' for v in list(hastalar.values())[:2]),
+                 f'/hasta/{ilk}#tahlilBolum', len(disari), 'tup')
+    sira = {'acil': 0, 'uyari': 1, 'bilgi': 2}
+    b.sort(key=lambda x: sira[x['seviye']])
+    return jsonify({'bildirimler': b})
+
+
+# ------------------------------------------------------------------
+# Hasta portalı (tek kullanımlık kodla giriş)
+# ------------------------------------------------------------------
+PORTAL_KOD_DAKIKA = 15
+PORTAL_BOSTA_DAKIKA = 30
+_portal_istekler = {}
+
+
+def portal_kod_ozeti(hasta_id, kod):
+    return hashlib.sha256(f'{hasta_id}:{kod}:{app.secret_key}'.encode()).hexdigest()
+
+
+def portal_hasta():
+    hid = session.get('portal_hasta_id')
+    if not hid:
+        return None
+    son = session.get('portal_son', 0)
+    if datetime.utcnow().timestamp() - son > PORTAL_BOSTA_DAKIKA * 60:
+        session.pop('portal_hasta_id', None)
+        return None
+    session['portal_son'] = datetime.utcnow().timestamp()
+    return db.session.get(Hasta, hid)
+
+
+def portal_hiz_siniri(anahtar, adet, dakika):
+    simdi = datetime.now()
+    son = [z for z in _portal_istekler.get(anahtar, []) if simdi - z < timedelta(minutes=dakika)]
+    if len(son) >= adet:
+        _portal_istekler[anahtar] = son
+        return True
+    son.append(simdi)
+    _portal_istekler[anahtar] = son
+    return False
+
+
+@app.route('/api/hasta/<int:hasta_id>/portal_kodu', methods=['POST'])
+def portal_kodu_olustur(hasta_id):
+    h = db.get_or_404(Hasta, hasta_id)
+    if len(telefon_normal(h.telefon)) != 10:
+        return hata('Hastanın geçerli bir cep telefonu kayıtlı değil.')
+    simdi = datetime.now()
+    PortalKodu.query.filter(PortalKodu.hasta_id == h.id, PortalKodu.kullanildi.is_(None),
+                            PortalKodu.son_kullanma > simdi).update({'son_kullanma': simdi})
+    kod = f'{secrets.randbelow(10 ** 6):06d}'
+    db.session.add(PortalKodu(hasta_id=h.id, kod_ozeti=portal_kod_ozeti(h.id, kod), olusturma=simdi,
+                              son_kullanma=simdi + timedelta(minutes=PORTAL_KOD_DAKIKA), olusturan_id=g.kullanici.id))
+    PortalIstegi.query.filter_by(hasta_id=h.id, durum='Bekliyor').update({'durum': 'Gönderildi'})
+    link = disaridan_url('portal')
+    mesaj = (f'Merhaba {h.ad_soyad.split()[0]}, {KLINIK_ADI} hasta portalı giriş kodunuz: {kod}\n'
+             f'Kod {PORTAL_KOD_DAKIKA} dakika geçerlidir ve tek kullanımlıktır. Giriş: {link}\n'
+             'Bu kodu kimseyle paylaşmayın; kliniğimiz sizden kod istemez.')
+    islem_kaydet('portal', 'hasta', h.id, f'{h.ad_soyad}: portal giriş kodu oluşturuldu')
+    db.session.commit()
+    return jsonify({'kod': kod, 'dakika': PORTAL_KOD_DAKIKA, 'link': link, 'whatsapp': whatsapp_link(h.telefon, mesaj),
+                    'telefon': telefon_bicimle(h.telefon), 'mesaj': f'Giriş kodu oluşturuldu ({PORTAL_KOD_DAKIKA} dk geçerli).'})
+
+
+@app.route('/portal')
+def portal():
+    h = portal_hasta()
+    if not h:
+        return render_template('portal.html', hasta=None, klinik_adi=KLINIK_ADI)
+    bugun = date.today()
+    lab = {}
+    for l in h.lab_sonuclari:
+        lab.setdefault(l.test, []).append(l.sozluk())
+    veri = {
+        'hasta': {'ad_soyad': h.ad_soyad, 'kan_grubu': h.kan_grubu or '', 'alerji': h.alerji_durumu or '',
+                  'kronik': h.kronik_hastaliklar or ''},
+        'yaklasan': [{'tarih': kisa_tarih(r.tarih), 'gun': GUNLER[r.tarih.weekday()], 'saat': r.saat, 'islem': r.islem_turu,
+                      'hekim': r.doktor.gorunen_ad if r.doktor else '', 'oda': (r.doktor.oda if r.doktor else '') or '',
+                      'durum': r.durum, 'iso': r.tarih.isoformat()}
+                     for r in sorted(h.randevular, key=lambda r: (r.tarih, r.saat))
+                     if r.tarih >= bugun and r.durum in ('Bekliyor', 'Onaylandı')],
+        'receteler': [{'id': rc.id, 'no': rc.recete_no, 'tarih': kisa_tarih(rc.tarih), 'tani': rc.tani or '',
+                       'hekim': rc.doktor.gorunen_ad if rc.doktor else '', 'notlar': rc.notlar or '',
+                       'kalemler': [{'ad': k.ilac_adi, 'doz': k.doz or '', 'kullanim': k.kullanim or '', 'sure': k.sure or '',
+                                     'adet': k.adet} for k in rc.kalemler]}
+                      for rc in sorted(Recete.query.filter_by(hasta_id=h.id).all(), key=lambda x: x.tarih, reverse=True)[:12]],
+        'lab': [{'test': k, 'ad': v[-1]['ad'], 'birim': v[-1]['birim'], 'son': v[-1], 'seri': [x['deger'] for x in v],
+                 'tarihler': [kisa_tarih(date.fromisoformat(x['tarih'])) for x in v]} for k, v in lab.items()],
+        'dosyalar': [{'id': d.id, 'ad': d.aciklama or d.ad, 'tur': d.TURLER.get(d.tur, d.tur), 'tarih': kisa_tarih(d.tarih),
+                      'gorsel': d.gorsel_mi} for d in h.dosyalar],
+        'muayeneler': [{'tarih': kisa_tarih(m.tarih), 'tani': m.tani, 'hekim': m.doktor.gorunen_ad if m.doktor else '',
+                        'kontrol': kisa_tarih(m.kontrol_tarihi) if m.kontrol_tarihi else None,
+                        'kontrol_gelecek': bool(m.kontrol_tarihi and m.kontrol_tarihi >= bugun)}
+                       for m in sorted(h.muayeneler, key=lambda m: m.tarih, reverse=True)[:10]],
+        'online_link': url_for('online_randevu'),
+    }
+    return render_template('portal.html', hasta=h, klinik_adi=KLINIK_ADI, veri=veri)
+
+
+@app.route('/api/portal/kod_iste', methods=['POST'])
+def portal_kod_iste():
+    ip = istemci_ip()
+    if portal_hiz_siniri('istek:' + ip, 5, 60):
+        return hata('Çok sayıda istek gönderildi. Lütfen daha sonra tekrar deneyin.', 429)
+    n = telefon_normal((request.get_json(silent=True) or {}).get('telefon'))
+    if len(n) != 10:
+        return hata('Geçerli bir cep telefonu numarası girin (05xx xxx xx xx).')
+    for h in Hasta.query.all():
+        if telefon_normal(h.telefon) != n:
+            continue
+        yakin = PortalIstegi.query.filter(PortalIstegi.hasta_id == h.id,
+                                          PortalIstegi.olusturma > datetime.now() - timedelta(minutes=10)).first()
+        if not yakin:
+            db.session.add(PortalIstegi(hasta_id=h.id, ip=ip))
+            islem_kaydet('portal', 'hasta', h.id, f'{h.ad_soyad}: portal kodu istendi', ad='Hasta portalı')
+    db.session.commit()
+    # Numara kayıtlı olsun olmasın aynı yanıt verilir (numara tahmini engellenir)
+    return jsonify({'mesaj': 'İsteğiniz kliniğe iletildi. Numaranız kayıtlıysa giriş kodunuz WhatsApp ile gönderilecek.'})
+
+
+@app.route('/api/portal/giris', methods=['POST'])
+def portal_giris():
+    ip = istemci_ip()
+    if portal_hiz_siniri('giris:' + ip, 10, 15):
+        return hata('Çok sayıda hatalı deneme. 15 dakika sonra tekrar deneyin.', 429)
+    v = request.get_json(silent=True) or {}
+    n, kod = telefon_normal(v.get('telefon')), re.sub(r'\D', '', v.get('kod') or '')
+    if len(n) != 10 or len(kod) != 6:
+        return hata('Telefon numaranızı ve 6 haneli kodu girin.')
+    simdi = datetime.now()
+    adaylar = [h for h in Hasta.query.all() if telefon_normal(h.telefon) == n]
+    for h in adaylar:
+        for k in PortalKodu.query.filter(PortalKodu.hasta_id == h.id, PortalKodu.kullanildi.is_(None),
+                                         PortalKodu.son_kullanma > simdi, PortalKodu.deneme < 5).all():
+            if secrets.compare_digest(k.kod_ozeti, portal_kod_ozeti(h.id, kod)):
+                k.kullanildi = simdi
+                session['portal_hasta_id'] = h.id
+                session['portal_son'] = datetime.utcnow().timestamp()
+                islem_kaydet('portal', 'hasta', h.id, f'{h.ad_soyad}: hasta portalına giriş yaptı', ad='Hasta portalı')
+                db.session.commit()
+                return jsonify({'mesaj': f'Hoş geldiniz, {h.ad_soyad.split()[0]}.'})
+            k.deneme = (k.deneme or 0) + 1
+    db.session.commit()
+    return hata('Kod hatalı veya süresi dolmuş. Kliniğinizden yeni kod isteyebilirsiniz.', 401)
+
+
+@app.route('/api/portal/cikis', methods=['POST'])
+def portal_cikis():
+    session.pop('portal_hasta_id', None)
+    session.pop('portal_son', None)
+    return jsonify({'mesaj': 'Çıkış yapıldı.'})
+
+
+@app.route('/portal/dosya/<int:dosya_id>')
+def portal_dosya(dosya_id):
+    h = portal_hasta()
+    d = db.session.get(HastaDosyasi, dosya_id)
+    if not h or not d or d.hasta_id != h.id:
+        abort(404)
+    yol = os.path.join(hasta_dosya_klasoru(d.hasta_id, olustur=False), d.dosya_adi)
+    if not os.path.exists(yol):
+        abort(404)
+    islem_kaydet('goruntuleme', 'dosya', d.id, f'{h.ad_soyad}: portaldan {d.ad}', ad='Hasta portalı')
+    db.session.commit()
+    yanit = send_file(yol, mimetype=d.mime, as_attachment=bool(request.args.get('indir')), download_name=d.ad, max_age=0)
+    yanit.headers['X-Content-Type-Options'] = 'nosniff'
+    yanit.headers['Cache-Control'] = 'private, no-store'
+    return yanit
+
+
+@app.route('/portal/recete/<int:recete_id>')
+def portal_recete(recete_id):
+    h = portal_hasta()
+    r = db.session.get(Recete, recete_id)
+    if not h or not r or r.hasta_id != h.id:
+        abort(404)
+    islem_kaydet('goruntuleme', 'recete', r.id, f'{h.ad_soyad}: portaldan {r.recete_no}', ad='Hasta portalı')
+    db.session.commit()
+    return render_template('recete_yazdir.html', recete=r, hasta=h, portal=True)
+
+
+# ------------------------------------------------------------------
+# PWA: manifest, service worker, çevrimdışı sayfa
+# ------------------------------------------------------------------
+def manifest_verisi(ad, kisa_ad, baslangic, kapsam):
+    return {
+        'name': ad, 'short_name': kisa_ad, 'lang': 'tr', 'dir': 'ltr', 'start_url': baslangic, 'scope': kapsam,
+        'display': 'standalone', 'orientation': 'any', 'background_color': '#07051A', 'theme_color': '#1E0B4B',
+        'icons': [
+            {'src': url_for('static', filename='ikon/ikon-192.png'), 'sizes': '192x192', 'type': 'image/png'},
+            {'src': url_for('static', filename='ikon/ikon-512.png'), 'sizes': '512x512', 'type': 'image/png'},
+            {'src': url_for('static', filename='ikon/ikon-maskable-512.png'), 'sizes': '512x512', 'type': 'image/png',
+             'purpose': 'maskable'},
+        ],
+    }
+
+
+def manifest_yaniti(veri):
+    return Response(json.dumps(veri, ensure_ascii=False), mimetype='application/manifest+json')
+
+
+@app.route('/manifest.webmanifest')
+def pwa_manifest():
+    veri = manifest_verisi(KLINIK_ADI, 'Klinik', '/', '/')
+    veri['shortcuts'] = [{'name': ad, 'url': url, 'icons': veri['icons'][:1]}
+                         for ad, url in (('Randevular', '/randevular'), ('Hastalar', '/hastalar'), ('Kasa', '/kasa'))]
+    return manifest_yaniti(veri)
+
+
+@app.route('/portal/manifest.webmanifest')
+def portal_manifest():
+    return manifest_yaniti(manifest_verisi(f'{KLINIK_ADI} Hasta Portalı', 'Portalım', '/portal', '/portal'))
+
+
+@app.route('/sw.js')
+def service_worker():
+    yanit = send_from_directory(app.static_folder, 'sw.js', mimetype='application/javascript', max_age=0)
+    yanit.headers['Service-Worker-Allowed'] = '/'
+    yanit.headers['Cache-Control'] = 'no-cache'
+    return yanit
+
+
+@app.route('/cevrimdisi')
+def cevrimdisi():
+    return render_template('cevrimdisi.html', klinik_adi=KLINIK_ADI)
 
 
 
@@ -3667,6 +4183,56 @@ def ek_ornek_veri():
         db.session.commit()
         if eklenen:
             print(f'{eklenen} tahlil değeri ve 1 örnek tahlil belgesi eklendi.')
+
+    # --- Muayene şablonları, kontrol takibi ve portal isteği ---
+    if ayar('demo_v3') != '1' and doktor:
+        if not MuayeneSablonu.query.count():
+            ornekler = [
+                ('ÜSYE', 'Üst solunum yolu enfeksiyonu',
+                 'Orofarenks hiperemik, tonsiller hipertrofik değil, eksüda yok. Akciğer sesleri doğal. Servikal LAP yok.',
+                 'Bol sıvı, istirahat. Ateş ve ağrı için parasetamol. 5 gün içinde düzelme olmazsa veya ateş 39 °C üzerine çıkarsa kontrol.', 5,
+                 [{'ilac_adi': 'Parasetamol 500 mg tablet', 'doz': '500 mg', 'kullanim': 'Gerektiğinde, günde en fazla 4 kez', 'sure': '5 gün', 'adet': 1}]),
+                ('Akut tonsillofarenjit', 'Akut tonsillofarenjit',
+                 'Tonsiller hipertrofik ve hiperemik, sağda eksüda mevcut. Servikal LAP palpabl, hassas. Ateş 38,4 °C.',
+                 'Antibiyotik tedavisi 10 gün eksiksiz kullanılmalı. Bol sıvı, ılık tuzlu su gargarası.', 10,
+                 [{'ilac_adi': 'Amoksisilin + Klavulanik asit 1000 mg tablet', 'doz': '1000 mg', 'kullanim': 'Günde 2 kez, tok karnına', 'sure': '10 gün', 'adet': 2},
+                  {'ilac_adi': 'İbuprofen 400 mg tablet', 'doz': '400 mg', 'kullanim': 'Günde 3 kez, tok karnına', 'sure': '5 gün', 'adet': 1}]),
+                ('Hipertansiyon kontrolü', 'Esansiyel hipertansiyon',
+                 'Ev ölçümleri getirildi. Kalp sesleri ritmik, üfürüm yok. Periferik ödem yok.',
+                 'Tuz kısıtlaması, düzenli yürüyüş. Günlük tansiyon takibi ve kayıt. İlaç tedavisine devam.', 90, []),
+                ('Tip 2 DM takibi', 'Tip 2 diabetes mellitus',
+                 'Ayak muayenesi normal, monofilaman testi duyarlı. Hipoglisemi atağı tarif etmiyor.',
+                 'Diyet ve egzersiz önerileri yinelendi. 3 ayda bir HbA1c, yılda bir göz dibi muayenesi.', 90, []),
+                ('Hipotiroidi takibi', 'Hipotiroidi',
+                 'Halsizlik ve üşüme yakınması azalmış. Tiroid bezi palpasyonla normal.',
+                 'Levotiroksin aç karnına, kahvaltıdan 30 dk önce. 6 hafta sonra TSH kontrolü.', 42, []),
+                ('Akut gastroenterit', 'Akut gastroenterit',
+                 'Batın rahat, hassasiyet yok, bağırsak sesleri artmış. Dehidratasyon bulgusu yok.',
+                 'Bol sıvı, ağızdan sıvı-elektrolit desteği, hafif diyet. Kanlı ishal veya kusma devam ederse başvuru.', 3, []),
+            ]
+            for ad, tani, bulgu, tedavi, gun, kalem in ornekler:
+                db.session.add(MuayeneSablonu(ad=ad, tani=tani, bulgular=bulgu, tedavi=tedavi, kontrol_gun=gun,
+                                              kalemler=json.dumps(kalem, ensure_ascii=False), olusturan_id=did,
+                                              kullanim={'ÜSYE': 7, 'Hipertansiyon kontrolü': 5, 'Akut tonsillofarenjit': 3}.get(ad, 0)))
+        # Gelecek randevusu olmayan hastaların son muayenesine yakın kontrol tarihi ver
+        sayac = 0
+        for h in Hasta.query.all():
+            if sayac >= 3:
+                break
+            if any(r.tarih >= bugun and r.durum in ('Bekliyor', 'Onaylandı') for r in h.randevular):
+                continue
+            son = Muayene.query.filter_by(hasta_id=h.id).order_by(Muayene.tarih.desc()).first()
+            if not son:
+                continue
+            son.kontrol_tarihi = bugun + timedelta(days=[-4, 0, 3][sayac])
+            son.kontrol_durum = None
+            sayac += 1
+        elif_ = Hasta.query.filter_by(tc_kimlik='45678901234').first() or Hasta.query.order_by(Hasta.id.desc()).first()
+        if elif_ and not PortalIstegi.query.count():
+            db.session.add(PortalIstegi(hasta_id=elif_.id, olusturma=simdi - timedelta(minutes=12), ip='127.0.0.1'))
+        ayar_yaz('demo_v3', '1')
+        db.session.commit()
+        print(f'Muayene şablonları, {sayac} kontrol bekleyen hasta ve 1 portal kodu isteği eklendi.')
 
 
 with app.app_context():

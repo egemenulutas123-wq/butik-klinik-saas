@@ -12,6 +12,7 @@
         tailwind.config = { theme: { extend: { fontFamily: { sora: ['Sora', 'system-ui', 'sans-serif'], sans: ['Inter', 'system-ui', 'sans-serif'] } } } };
     </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/klinik.css') }}">
+    {% include '_pwa_head.html' %}
 </head>
 <body class="min-h-screen text-violet-50 antialiased">
     <section class="sahne !rounded-none min-h-screen" data-sahne="panel" style="background: radial-gradient(900px 600px at 70% 40%, #3B1D8F, #0B0624 70%)">
@@ -107,5 +108,6 @@
         setTimeout(function () { var ilk = form.querySelector('input'); if (ilk) ilk.focus(); }, 300);
     })();
     </script>
+<script src="{{ url_for('static', filename='js/pwa.js') }}"></script>
 </body>
 </html>

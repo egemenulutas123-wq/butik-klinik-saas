@@ -464,6 +464,7 @@
     $('m_vital_kutu').open = false;
     muayeneVital.sifirla();
     if (randevuId) $('m_randevu').value = String(randevuId);
+    if (window.KlinikSablon) KlinikSablon.sifirla();
     Klinik.modalAcId('muayeneModal', 'm_tani');
   }
   $('muayeneAc').addEventListener('click', function () { muayeneAc(null); });
@@ -485,11 +486,13 @@
         tedavi: $('m_tedavi').value,
         kontrol_tarihi: $('m_kontrol').value || null,
         guncel_tani: $('m_guncel').checked,
+        sablon_id: window.KlinikSablon ? KlinikSablon.aktifId() : null,
         vital: muayeneVital.doluMu() ? muayeneVital.oku() : null
       });
       Klinik.bildir(s.mesaj);
       Klinik.modalKapatId('muayeneModal');
-      setTimeout(function () { location.href = location.pathname + (receteyeGec ? '?recete=' + s.id : ''); }, 600);
+      var sablonEk = receteyeGec && window.KlinikSablon && KlinikSablon.ilacliMi() ? '&sablon=' + KlinikSablon.aktifId() : '';
+      setTimeout(function () { location.href = location.pathname + (receteyeGec ? '?recete=' + s.id + sablonEk : ''); }, 600);
     } catch (h) {
       Klinik.bildir(h.message, 'hata');
       dugmeler.forEach(function (d) { d.disabled = false; });
@@ -817,6 +820,24 @@
       } catch (h) { Klinik.bildir(h.message, 'hata'); }
     });
   });
+
+  // Şablonlardan reçete doldurma (sablon.js kullanır)
+  window.KlinikRecete = {
+    ac: receteAc,
+    kalemler: function () { return kalemler.map(function (k) { return { ilac_adi: k.ilac_adi, doz: k.doz, kullanim: k.kullanim, sure: k.sure, adet: k.adet }; }); },
+    sablonUygula: function (sb) {
+      (sb.kalemler || []).forEach(function (k) {
+        if (kalemler.some(function (x) { return norm(x.ilac_adi) === norm(k.ilac_adi); })) return;
+        var bilinen = ILACLAR.filter(function (i) { return norm(i.ad) === norm(k.ilac_adi); })[0];
+        kalemler.push({ ilac_adi: k.ilac_adi, etken: bilinen ? bilinen.etken : '', gruplar: bilinen ? bilinen.gruplar : [],
+          doz: k.doz || (bilinen && bilinen.doz) || '', kullanim: k.kullanim || (bilinen && bilinen.kullanim) || '',
+          sure: k.sure || '', adet: k.adet || 1, yeni: true });
+      });
+      if (sb.recete_notu && !$('r_notlar').value) $('r_notlar').value = sb.recete_notu;
+      kalemleriCiz();
+      kontrolEt();
+    }
+  };
 
   // URL parametreleri: ?muayene=<randevu> veya ?recete=<muayene>
   var adres = new URLSearchParams(location.search);

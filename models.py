@@ -236,6 +236,9 @@ class Muayene(db.Model):
     bulgular = db.Column(db.Text)
     tedavi = db.Column(db.Text)
     kontrol_tarihi = db.Column(db.Date)
+    kontrol_durum = db.Column(db.String(12))      # None · 'hatirlatildi' · 'kapandi'
+    kontrol_hatirlatma = db.Column(db.DateTime)
+    sablon_id = db.Column(db.Integer, nullable=True)  # kullanılan muayene şablonu (istatistik için)
 
     hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=False)
     randevu_id = db.Column(db.Integer, db.ForeignKey('randevu.id'), nullable=True, unique=True)
@@ -612,3 +615,59 @@ class LabSonuc(db.Model):
                 'birim': self.birim or '', 'ref_min': self.ref_min, 'ref_max': self.ref_max, 'durum': self.durum,
                 'notlar': self.notlar or '', 'dosya_id': self.dosya_id,
                 'giren': self.giren.gorunen_ad if self.giren else ''}
+
+
+# ------------------------------------------------------------------
+# Muayene şablonları (sık tanılar için hazır bulgu / tedavi / reçete)
+# ------------------------------------------------------------------
+class MuayeneSablonu(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ad = db.Column(db.String(80), nullable=False)
+    tani = db.Column(db.String(150), nullable=False)
+    bulgular = db.Column(db.Text)
+    tedavi = db.Column(db.Text)
+    kontrol_gun = db.Column(db.Integer)               # muayeneden kaç gün sonra kontrol
+    recete_notu = db.Column(db.String(300))
+    kalemler = db.Column(db.Text)                     # JSON: [{ilac_adi, doz, kullanim, sure, adet}]
+    kullanim = db.Column(db.Integer, default=0)
+    son_kullanim = db.Column(db.DateTime)
+    olusturma = db.Column(db.DateTime, default=datetime.now)
+    olusturan_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
+    olusturan = db.relationship('Doktor', lazy=True)
+
+    def kalem_listesi(self):
+        import json
+        try:
+            v = json.loads(self.kalemler) if self.kalemler else []
+        except ValueError:
+            v = []
+        return v if isinstance(v, list) else []
+
+    def sozluk(self):
+        return {'id': self.id, 'ad': self.ad, 'tani': self.tani, 'bulgular': self.bulgular or '', 'tedavi': self.tedavi or '',
+                'kontrol_gun': self.kontrol_gun, 'recete_notu': self.recete_notu or '', 'kalemler': self.kalem_listesi(),
+                'kullanim': self.kullanim or 0, 'olusturan': self.olusturan.gorunen_ad if self.olusturan else ''}
+
+
+# ------------------------------------------------------------------
+# Hasta portalı: tek kullanımlık giriş kodları ve kod istekleri
+# ------------------------------------------------------------------
+class PortalKodu(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=False)
+    kod_ozeti = db.Column(db.String(64), nullable=False)    # SHA-256 (kodun kendisi saklanmaz)
+    olusturma = db.Column(db.DateTime, default=datetime.now)
+    son_kullanma = db.Column(db.DateTime, nullable=False)
+    deneme = db.Column(db.Integer, default=0)
+    kullanildi = db.Column(db.DateTime)
+    olusturan_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
+    hasta = db.relationship('Hasta', lazy=True, backref=db.backref('portal_kodlari', cascade='all, delete-orphan'))
+
+
+class PortalIstegi(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=False)
+    olusturma = db.Column(db.DateTime, default=datetime.now)
+    durum = db.Column(db.String(12), default='Bekliyor')    # Bekliyor · Gönderildi · Kapandı
+    ip = db.Column(db.String(45))
+    hasta = db.relationship('Hasta', lazy=True, backref=db.backref('portal_istekleri', cascade='all, delete-orphan'))

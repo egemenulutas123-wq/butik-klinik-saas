@@ -1,0 +1,8 @@
+<link rel="manifest" href="{{ manifest or '/manifest.webmanifest' }}">
+<meta name="theme-color" content="#1E0B4B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="{{ pwa_kisa_ad or 'Klinik' }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='ikon/apple-touch-icon.png') }}">
+<link rel="icon" type="image/png" sizes="48x48" href="{{ url_for('static', filename='ikon/favicon-48.png') }}">

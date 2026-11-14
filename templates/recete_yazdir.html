@@ -55,7 +55,7 @@
 <body>
     <div class="arac">
         <button type="button" class="ana" onclick="window.print()">Yazdır / PDF olarak kaydet</button>
-        <button type="button" class="ikinci" onclick="window.close()">Kapat</button>
+        {% if portal %}<a class="ikinci" href="/portal" style="display:inline-flex;align-items:center;text-decoration:none">Portala dön</a>{% else %}<button type="button" class="ikinci" onclick="window.close()">Kapat</button>{% endif %}
     </div>
 
     <main class="sayfa">

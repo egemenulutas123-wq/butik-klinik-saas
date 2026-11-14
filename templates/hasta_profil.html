@@ -103,6 +103,7 @@
                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
             </button>
             <div id="dahaMenu" class="hidden absolute left-0 bottom-14 z-30 w-64 p-1.5 rounded-2xl border border-white/15" style="background: rgba(20,12,48,0.96); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px)">
+                <button type="button" data-portal-ac class="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-teal-100 hover:bg-white/10">Hasta portalı giriş kodu</button>
                 <a href="{{ url_for('kvkk_aydinlatma', hasta=hasta.id) }}" target="_blank" rel="noopener" class="block px-3 py-2.5 rounded-xl text-sm font-medium text-white hover:bg-white/10">Aydınlatma metnini yazdır</a>
                 {% if hasta.kvkk_onay %}
                 <button type="button" data-kvkk-geri class="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-amber-100 hover:bg-amber-400/10">Açık rızanın geri çekildiğini kaydet</button>
@@ -562,6 +563,20 @@
             <strong class="font-bold shrink-0">Alerji:</strong><span>{{ hasta.alerji_durumu }}</span>
         </div>
         {% endif %}
+        <div class="flex flex-col gap-2 p-3.5 rounded-2xl bg-white/[0.04] border border-white/10">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="flex items-center gap-2 text-[13px] font-semibold text-white">
+                    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C4B5FD" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>
+                    Hızlı şablon</span>
+                <div class="flex items-center gap-1.5">
+                    <label class="sr-only" for="sablonAra">Şablon ara</label>
+                    <input id="sablonAra" type="search" autocomplete="off" class="alan !h-9 !w-40 !text-[12px] !px-3" placeholder="Şablon ara…">
+                    <button type="button" id="sablonYonetAc" class="h-9 px-3 rounded-lg text-[12px] font-semibold text-violet-100 border border-white/15 hover:bg-white/10">Yönet</button>
+                </div>
+            </div>
+            <div id="sablonCipler" class="flex flex-wrap gap-1.5"></div>
+            <div id="sablonIpucu" class="hidden text-[12px] text-teal-100"></div>
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Bağlı randevu
                 <select id="m_randevu" class="alan">
@@ -591,7 +606,15 @@
             <label class="flex items-center gap-3 h-12 px-4 rounded-[14px] bg-white/5 border border-white/10 text-[13px] font-medium text-violet-100 cursor-pointer">
                 <input id="m_guncel" type="checkbox" class="w-4 h-4 accent-violet-400" checked>Hastanın güncel tanısı olarak kaydet</label>
         </div>
+        <div id="sablonYapKutu" class="hidden flex-wrap items-end gap-2 p-3.5 rounded-2xl bg-violet-400/[0.08] border border-violet-300/25">
+            <label class="flex-1 min-w-[200px] flex flex-col gap-1.5 text-[12px] font-medium text-violet-100">Şablon adı
+                <input id="sablonYapAd" type="text" maxlength="80" class="alan !h-10 !text-[13px]"></label>
+            <span id="sablonYapBilgi" class="w-full order-last text-[11px] text-violet-300">Tanı, bulgular, tedavi ve kontrol süresi kaydedilir; ilaçları reçete ekranından ekleyebilirsiniz.</span>
+            <button type="button" id="sablonYapIptal" class="h-10 px-3 rounded-xl text-[12px] font-semibold text-white border border-white/15 hover:bg-white/10">Vazgeç</button>
+            <button type="button" id="sablonYapKaydet" class="h-10 px-4 rounded-xl text-[12px] font-bold text-[#1E0B4B] bg-violet-200 hover:bg-violet-100">Şablonu kaydet</button>
+        </div>
         <div class="flex flex-wrap justify-end gap-3 pt-1">
+            <button type="button" id="sablonYapAc" class="mr-auto h-12 px-4 rounded-2xl text-[13px] font-semibold text-violet-100 hover:bg-white/10 transition-colors">Şablon olarak kaydet</button>
             <button type="button" data-modal-kapat="muayeneModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
             <button type="button" id="muayeneReceteli" class="h-12 px-6 rounded-2xl text-sm font-bold text-rose-100 border border-rose-300/35 hover:bg-rose-500/15 transition-colors disabled:opacity-60">Kaydet ve reçete yaz</button>
             <button type="submit" id="muayeneKaydet" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors disabled:opacity-60">Muayeneyi kaydet</button>
@@ -666,7 +689,8 @@
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 px-6 sm:px-8 py-5 border-t border-white/10">
-            <span id="kalemSayac" class="text-[13px] text-violet-300">0 ilaç</span>
+            <span class="flex items-center gap-3"><span id="kalemSayac" class="text-[13px] text-violet-300">0 ilaç</span>
+                <button type="button" id="receteSablonAc" class="h-9 px-3 rounded-xl text-[12px] font-semibold text-violet-100 border border-white/15 hover:bg-white/10">Şablona kaydet</button></span>
             <div class="flex flex-wrap gap-3">
                 <button type="button" data-modal-kapat="receteModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10 transition-colors">Vazgeç</button>
                 <button type="submit" data-yazdir="0" class="recete-kaydet h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/10 border border-white/20 hover:bg-white/15 transition-colors disabled:opacity-50">Kaydet</button>
@@ -677,7 +701,76 @@
 </div>
 {% endif %}
 
+
+<!-- Hasta portalı giriş kodu -->
+<div id="portalModal" class="modal kapali fixed inset-0 z-[110] flex items-center justify-center p-4" style="background: rgba(3,2,14,0.78); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <div class="modal-ic cam-parlak w-full max-w-md rounded-[28px] p-6 flex flex-col items-center gap-4 text-center" style="background: rgba(12,32,40,0.95)" role="dialog" aria-modal="true" aria-labelledby="portalBaslik">
+        <h2 id="portalBaslik" class="font-sora text-2xl font-medium text-white">Hasta portalı</h2>
+        <p class="text-sm text-teal-50/80">{{ hasta.ad_soyad }} kendi reçetelerini, randevularını ve tahlillerini telefonundan görebilir. Tek kullanımlık kodu WhatsApp ile gönderin.</p>
+        <div id="portalKod" class="font-sora text-5xl font-semibold tracking-[0.3em] text-teal-200 tabular-nums">······</div>
+        <div id="portalBilgi" class="text-[13px] text-teal-50/70"></div>
+        <div class="flex flex-wrap justify-center gap-2">
+            <a id="portalWhatsapp" href="#" target="_blank" rel="noopener" class="hidden inline-flex items-center gap-2 h-11 px-5 rounded-xl text-sm font-bold text-[#052E16] bg-emerald-300 hover:bg-emerald-200">WhatsApp ile gönder</a>
+            <button type="button" id="portalYeni" class="h-11 px-4 rounded-xl text-sm font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">Yeni kod</button>
+            <button type="button" data-modal-kapat="portalModal" class="h-11 px-4 rounded-xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Kapat</button>
+        </div>
+        <p class="text-[11px] text-teal-50/50">Kod {{ 15 }} dakika geçerlidir ve bir kez kullanılabilir. Yeni kod oluşturmak öncekini geçersiz kılar.</p>
+    </div>
+</div>
+<script>
+(function () {
+    var ac = document.querySelectorAll('[data-portal-ac]');
+    if (!ac.length) return;
+    function $(id) { return document.getElementById(id); }
+    async function kodUret() {
+        $('portalKod').textContent = '······';
+        $('portalWhatsapp').classList.add('hidden');
+        try {
+            var r = await Klinik.jsonGonder('/api/hasta/{{ hasta.id }}/portal_kodu', {});
+            $('portalKod').textContent = r.kod;
+            $('portalBilgi').textContent = r.telefon + ' · ' + r.link.replace(/^https?:\/\//, '');
+            if (r.whatsapp) { $('portalWhatsapp').href = r.whatsapp; $('portalWhatsapp').classList.remove('hidden'); }
+        } catch (h) { $('portalKod').textContent = '—'; Klinik.bildir(h.message, 'hata'); }
+    }
+    ac.forEach(function (b) { b.addEventListener('click', function () { Klinik.modalAcId('portalModal', 'portalYeni'); kodUret(); }); });
+    $('portalYeni').addEventListener('click', kodUret);
+    {% if portal_ac %}setTimeout(function () { ac[0].click(); }, 600);{% endif %}
+})();
+</script>
+
 {% if doktor %}
+<!-- Şablon yönetimi -->
+<div id="sablonYonetModal" class="modal kapali fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.8); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <div class="modal-ic cam-parlak w-full max-w-2xl rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(24,14,58,0.96)" role="dialog" aria-modal="true" aria-labelledby="sablonYonetBaslik">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 id="sablonYonetBaslik" class="font-sora text-2xl font-medium text-white">Muayene şablonları</h2>
+                <p class="mt-1 text-sm text-violet-200/80">Tüm hekimlerin ortak şablonları · en çok kullanılan üstte.</p>
+            </div>
+            <button type="button" data-modal-kapat="sablonYonetModal" aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-violet-100 flex items-center justify-center hover:bg-white/10">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div id="sablonYonetListe" class="flex flex-col gap-2"></div>
+    </div>
+</div>
+
+<!-- Reçeteyi şablona kaydet -->
+<div id="receteSablonModal" class="modal kapali fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.8); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <div class="modal-ic cam-parlak w-full max-w-md rounded-[28px] p-6 flex flex-col gap-4" style="background: rgba(24,14,58,0.96)" role="dialog" aria-modal="true" aria-labelledby="receteSablonBaslik">
+        <h2 id="receteSablonBaslik" class="font-sora text-xl font-medium text-white">Reçeteyi şablona kaydet</h2>
+        <p id="receteSablonOzet" class="text-[13px] text-violet-200/80"></p>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Şablon
+            <select id="rs_sablon" class="alan"></select></label>
+        <label id="rs_ad_kutu" class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Yeni şablon adı
+            <input id="rs_ad" type="text" maxlength="80" class="alan"></label>
+        <div class="flex justify-end gap-3">
+            <button type="button" data-modal-kapat="receteSablonModal" class="h-11 px-5 rounded-xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Vazgeç</button>
+            <button type="button" id="rs_kaydet" class="h-11 px-6 rounded-xl text-sm font-bold text-[#1E0B4B] bg-white hover:bg-violet-100">Kaydet</button>
+        </div>
+    </div>
+</div>
+<script id="sablonVeri" type="application/json">{{ sablonlar_json | tojson }}</script>
+
 <!-- Dosya yükleme bilgileri -->
 <div id="yuklemeModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
     <form id="yuklemeForm" class="modal-ic cam-parlak w-full max-w-lg rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(24,14,58,0.94)" role="dialog" aria-modal="true" aria-labelledby="yuklemeBaslik" novalidate>
@@ -790,5 +883,6 @@
 <script src="{{ url_for('static', filename='js/kasa.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hesap.js') }}"></script>
 {% if doktor %}<script src="{{ url_for('static', filename='js/vucut3d.js') }}"></script>
-<script src="{{ url_for('static', filename='js/tahlil.js') }}"></script>{% endif %}
+<script src="{{ url_for('static', filename='js/tahlil.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sablon.js') }}"></script>{% endif %}
 {% endblock %}
