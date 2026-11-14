@@ -49,6 +49,70 @@
     </div>
 </section>
 
+<!-- Randevu hatırlatmaları -->
+<section id="hatirlatma" class="giris cam rounded-[28px] overflow-hidden" style="animation-delay: .15s" aria-labelledby="hatirlatmaBaslik">
+    <div class="flex flex-wrap items-center gap-3 px-5 sm:px-6 py-4 border-b border-white/10" style="background: linear-gradient(90deg, rgba(52,211,153,0.10), rgba(245,158,11,0.06))">
+        <span class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-[#052E16]" style="background: linear-gradient(135deg, #D1FAE5, #34D399)">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+        <div class="min-w-0 mr-auto">
+            <h2 id="hatirlatmaBaslik" class="font-sora text-lg font-medium text-white">Hatırlatmalar</h2>
+            <p class="text-[12px] text-emerald-50/70">Randevudan önce WhatsApp ile hatırlatın; gelmeyen hastaları işaretleyin.</p>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <button type="button" id="htOnceki" aria-label="Önceki gün" class="w-9 h-9 rounded-xl flex items-center justify-center text-white bg-white/10 border border-white/15 hover:bg-white/15">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+            <div class="min-w-[170px] text-center">
+                <div id="htGoreli" class="text-[11px] font-bold uppercase tracking-[0.1em] text-emerald-300"></div>
+                <div id="htTarih" class="text-sm font-semibold text-white"></div>
+            </div>
+            <button type="button" id="htSonraki" aria-label="Sonraki gün" class="w-9 h-9 rounded-xl flex items-center justify-center text-white bg-white/10 border border-white/15 hover:bg-white/15">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+        </div>
+    </div>
+    <div class="p-5 sm:p-6 flex flex-col gap-4">
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-3 mr-auto">
+                <svg aria-hidden="true" width="46" height="46" viewBox="0 0 42 42" class="-rotate-90 shrink-0">
+                    <circle cx="21" cy="21" r="16" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
+                    <circle id="htHalka" cx="21" cy="21" r="16" fill="none" stroke="#34D399" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" style="transition: stroke-dasharray .6s ease"/>
+                </svg>
+                <div>
+                    <div id="htSayac" class="font-sora text-xl font-medium text-white tabular-nums"></div>
+                    <div class="text-[12px] text-emerald-50/70">hatırlatıldı</div>
+                </div>
+            </div>
+            <button type="button" id="htSablonAc" class="h-10 px-4 rounded-xl text-[13px] font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/15">Mesajı düzenle</button>
+            <button type="button" id="htSiradaki" class="flex items-center gap-2 h-10 px-4 rounded-xl text-[13px] font-bold text-[#052E16] bg-emerald-300 hover:bg-emerald-200 transition-colors disabled:opacity-50">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Z"/></svg>Sıradakine gönder</button>
+        </div>
+        <div id="htListe" class="grid grid-cols-1 lg:grid-cols-2 gap-2"></div>
+    </div>
+</section>
+
+<div id="htSablonModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="htSablonForm" class="modal-ic cam-parlak w-full max-w-xl rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(8,30,28,0.94)" role="dialog" aria-modal="true" aria-labelledby="htSablonBaslik" novalidate>
+        <div>
+            <h2 id="htSablonBaslik" class="font-sora text-2xl font-medium text-white">Hatırlatma mesajı</h2>
+            <p class="mt-1 text-sm text-emerald-50/80">Etiketlere tıklayarak hastaya özel bilgileri ekleyin.</p>
+        </div>
+        <div class="flex flex-wrap gap-1.5" id="htEtiketler">
+            {% for k, e in [('ad', 'Ad'), ('adsoyad', 'Ad soyad'), ('gun', 'Gün'), ('tarih', 'Tarih'), ('saat', 'Saat'), ('islem', 'Hizmet'), ('klinik', 'Klinik adı')] %}
+            <button type="button" data-etiket="{{ '{' ~ k ~ '}' }}" class="h-8 px-3 rounded-full text-[12px] font-semibold text-emerald-100 bg-emerald-400/10 border border-emerald-300/25 hover:bg-emerald-400/20">{{ e }}</button>
+            {% endfor %}
+        </div>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-emerald-100">Mesaj
+            <textarea id="htSablon" rows="5" maxlength="600" class="alan"></textarea></label>
+        <div>
+            <div class="mb-1.5 text-[12px] font-semibold text-emerald-300">Önizleme</div>
+            <div id="htOnizleme" class="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed text-[#052E16]" style="background: #D9FDD3"></div>
+        </div>
+        <div class="flex justify-end gap-3">
+            <button type="button" data-modal-kapat="htSablonModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Vazgeç</button>
+            <button type="submit" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#052E16] bg-emerald-300 hover:bg-emerald-200 disabled:opacity-60">Kaydet</button>
+        </div>
+    </form>
+</div>
+
 <div class="flex flex-wrap gap-4 items-start">
 
     <!-- Yeni randevu formu -->
@@ -107,7 +171,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div id="gunBaslik" class="text-[15px] font-semibold text-white"></div>
             <div role="group" aria-label="Durum filtresi" class="flex flex-wrap gap-1.5">
-                {% for d in ['Tümü', 'Bekliyor', 'Onaylandı', 'Tamamlandı', 'İptal'] %}
+                {% for d in ['Tümü', 'Bekliyor', 'Onaylandı', 'Tamamlandı', 'Gelmedi', 'İptal'] %}
                 <button type="button" data-durum="{{ d }}" class="durum-cip h-9 px-3 rounded-full text-xs font-semibold border transition-all">{{ d }}</button>
                 {% endfor %}
             </div>
@@ -277,12 +341,14 @@
         'Tamamlandı': 'bg-white/10 text-teal-50',
         'Onaylandı': 'bg-teal-400/20 text-teal-200',
         'Bekliyor': 'bg-amber-400/20 text-amber-200',
+        'Gelmedi': 'bg-orange-500/25 text-orange-200',
         'İptal': 'bg-rose-500/20 text-rose-200'
     };
     var SONRAKI = {
-        'Bekliyor': [['Onaylandı', 'Onayla'], ['İptal', 'İptal et']],
-        'Onaylandı': [['Tamamlandı', 'Tamamlandı'], ['İptal', 'İptal et']],
+        'Bekliyor': [['Onaylandı', 'Onayla'], ['Gelmedi', 'Gelmedi'], ['İptal', 'İptal et']],
+        'Onaylandı': [['Tamamlandı', 'Tamamlandı'], ['Gelmedi', 'Gelmedi'], ['İptal', 'İptal et']],
         'Tamamlandı': [],
+        'Gelmedi': [['Onaylandı', 'Geri al']],
         'İptal': [['Bekliyor', 'Geri al']]
     };
 
@@ -341,6 +407,16 @@
             var ad = el('a', 'text-[15px] font-semibold text-white hover:text-teal-200 transition-colors', r.hasta_ad);
             ad.href = '/hasta/' + r.hasta_id;
             bilgi.appendChild(ad);
+            if (r.hasta_gelmeme > 0) {
+                var gr = el('span', 'ml-2 inline-flex items-center h-5 px-2 rounded-full text-[10px] font-bold align-middle ' +
+                    (r.hasta_gelmeme >= 3 ? 'bg-orange-500/30 text-orange-100' : 'bg-orange-500/15 text-orange-200'), r.hasta_gelmeme + ' kez gelmedi');
+                gr.title = 'Bu hasta daha önce ' + r.hasta_gelmeme + ' randevusuna gelmedi';
+                bilgi.appendChild(gr);
+            }
+            if (r.hatirlatildi && (r.durum === 'Bekliyor' || r.durum === 'Onaylandı')) {
+                var hb = el('span', 'ml-1.5 inline-flex items-center h-5 px-2 rounded-full text-[10px] font-bold align-middle bg-emerald-400/15 text-emerald-200', '✓ Hatırlatıldı');
+                bilgi.appendChild(hb);
+            }
             bilgi.appendChild(el('div', 'mt-0.5 text-[13px] text-teal-50/80 truncate', r.islem_turu + (r.notlar ? ' · ' + r.notlar : '')));
             satir.appendChild(bilgi);
 
@@ -357,15 +433,18 @@
                 th.href = '/hasta/' + r.hasta_id + '?tahsilat=1';
                 aksiyon.appendChild(th);
             }
-            if (r.durum !== 'Tamamlandı') {
+            if (r.durum !== 'Tamamlandı' && r.durum !== 'Gelmedi') {
                 var er = el('button', 'h-9 px-3 rounded-[10px] text-xs font-semibold border text-teal-50 border-white/15 hover:bg-white/10 transition-colors', 'Ertele');
                 er.type = 'button';
                 er.addEventListener('click', function () { erteleAc(r); });
                 aksiyon.appendChild(er);
             }
             (SONRAKI[r.durum] || []).forEach(function (s) {
+                if (s[0] === 'Gelmedi' && r.tarih > BUGUN) return;   // gelecekteki randevu "gelmedi" olamaz
                 var b = el('button', 'h-9 px-3 rounded-[10px] text-xs font-semibold border transition-colors ' +
-                    (s[0] === 'İptal' ? 'text-rose-200 border-rose-300/30 hover:bg-rose-500/15' : 'text-teal-50 border-white/15 hover:bg-white/10'), s[1]);
+                    (s[0] === 'İptal' ? 'text-rose-200 border-rose-300/30 hover:bg-rose-500/15'
+                        : s[0] === 'Gelmedi' ? 'text-orange-200 border-orange-300/30 hover:bg-orange-500/15'
+                        : 'text-teal-50 border-white/15 hover:bg-white/10'), s[1]);
                 b.type = 'button';
                 b.addEventListener('click', function () { durumDegistir(r, s[0], b); });
                 aksiyon.appendChild(b);
@@ -380,7 +459,10 @@
         try {
             var sonuc = await Klinik.jsonGonder('/api/randevu_durum/' + r.id, { durum: yeni });
             r.durum = sonuc.randevu.durum;
-            Klinik.bildir(r.hasta_ad + ' · ' + r.saat + ' → ' + r.durum);
+            r.hasta_gelmeme = sonuc.randevu.hasta_gelmeme;
+            RANDEVULAR.forEach(function (x) { if (x.hasta_id === r.hasta_id) x.hasta_gelmeme = sonuc.randevu.hasta_gelmeme; });
+            Klinik.bildir(sonuc.kritik && sonuc.kritik.length ? sonuc.mesaj + ' Stok uyarısı: ' + sonuc.kritik.join(', ') : sonuc.mesaj,
+                          sonuc.kritik && sonuc.kritik.length ? 'hata' : undefined);
             listeyiCiz();
             doluSaatleriGetir();
         } catch (h) {
@@ -537,4 +619,5 @@
 })();
 </script>
 <script src="{{ url_for('static', filename='js/online_talepler.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hatirlatma.js') }}"></script>
 {% endblock %}

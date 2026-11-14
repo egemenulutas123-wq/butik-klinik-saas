@@ -120,7 +120,33 @@ input[type="date"].alan { color-scheme: dark; }
 .vucut-alan canvas { display: block; width: 100%; height: 100%; }
 .vucut-alan.uzerinde { cursor: crosshair; }
 
+/* Sesli not (dikte) */
+@keyframes k-dikte { 0% { box-shadow: 0 0 0 0 rgba(244,63,94,0.6); } 100% { box-shadow: 0 0 0 12px rgba(244,63,94,0); } }
+.dikte-kayit { animation: k-dikte 1.2s ease-out infinite; }
+.dikte-aktif { border-color: rgba(251,113,133,0.6) !important; box-shadow: 0 0 0 4px rgba(244,63,94,0.15) !important; }
+.dikte-dalga { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.dikte-dalga i { display: block; width: 3px; height: 100%; border-radius: 2px; background: #FB7185; animation: k-dalga .9s ease-in-out infinite; }
+.dikte-dalga i:nth-child(2) { animation-delay: .15s; } .dikte-dalga i:nth-child(3) { animation-delay: .3s; } .dikte-dalga i:nth-child(4) { animation-delay: .45s; }
+@keyframes k-dalga { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+
+/* Raporlar: ısı haritası ve yazdırma */
+.isi-hucre { transition: transform .15s ease, box-shadow .15s ease; }
+.isi-hucre:hover { transform: scale(1.12); box-shadow: 0 0 0 2px rgba(255,255,255,.6); z-index: 2; position: relative; }
+.yalniz-yazdir { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  html, body { background: #0B0720 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .yazdirma-gizle, header, .sahne canvas, #kilitEkrani, #bildirim { display: none !important; }
+  .sahne { height: auto !important; min-height: 0 !important; background: none !important; }
+  .sahne-ortu { display: none !important; }
+  .sahne > div { position: static !important; }
+  .yalniz-yazdir { display: block !important; }
+  .giris, .satir { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .rapor-blok { break-inside: avoid; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .dikte-kayit, .dikte-dalga i { animation: none; }
   .kasa-cubuk, .halka-dilim, .yontem-serit, .adim-gir, .onay-pop { animation: none; }
   .onay-tik { animation: none; stroke-dashoffset: 0; }
   .vital-cizgi, .vital-nokta, .vital-alan { animation: none; opacity: 1; stroke-dashoffset: 0; }

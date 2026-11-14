@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block baslik %}Raporlar{% endblock %}
+{% block sahne_adi %}raporlar{% endblock %}
+{% block sahne_yukseklik %}h-[500px] md:h-[460px]{% endblock %}
+{% block sahne_zemin %}radial-gradient(800px 500px at 70% 45%, #2A1B6E, #0B0820 70%){% endblock %}
+{% block govde_zemin %}radial-gradient(900px 500px at 60% 480px, rgba(167,139,250,0.12), transparent 70%), #07051A{% endblock %}
+
+{% block ust_aksiyonlar %}
+<button type="button" onclick="window.print()" class="yazdirma-gizle flex items-center gap-1.5 h-10 px-4 rounded-xl text-[13px] font-bold text-[#1E0B4B] bg-white hover:bg-violet-100 transition-colors">PDF / Yazdır</button>
+{% endblock %}
+
+{% block sahne_icerik %}
+<div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:bottom-10 max-w-[680px] flex flex-col gap-4">
+    <span class="giris cam-acik inline-flex self-start items-center gap-2 h-[30px] px-3 rounded-full text-xs font-semibold" style="animation-delay: .1s">
+        <span class="nabiz w-2 h-2 rounded-full bg-violet-300"></span>{{ etiket }} · {{ bas | kisa_tarih }} – {{ bit | kisa_tarih }}
+    </span>
+    <h1 class="giris font-sora text-5xl sm:text-[64px] font-medium leading-none tracking-[-0.035em] text-white" style="animation-delay: .2s">Raporlar</h1>
+    <p class="giris text-base sm:text-[17px] text-violet-100/90" style="animation-delay: .3s">
+        <strong class="text-white font-semibold">{{ ozet.gelir | tl }}</strong> gelir · <strong class="text-white font-semibold">{{ ozet.tamamlanan }}</strong> tamamlanan randevu · <strong class="text-white font-semibold">{{ ozet.tekil_hasta }}</strong> farklı hasta
+    </p>
+    <form id="aralikForm" method="get" class="giris yazdirma-gizle flex flex-wrap items-center gap-1.5" style="animation-delay: .4s">
+        {% for k, e in [('ay', 'Bu ay'), ('gecen_ay', 'Geçen ay'), ('3ay', 'Son 3 ay'), ('yil', 'Bu yıl')] %}
+        <a href="{{ url_for('raporlar', aralik=k) }}" class="inline-flex items-center h-10 px-4 rounded-xl text-[13px] font-semibold transition-colors {{ 'bg-white text-[#1E0B4B]' if aralik == k else 'cam-acik text-white hover:bg-white/20' }}">{{ e }}</a>
+        {% endfor %}
+        <span class="cam-acik inline-flex items-center gap-1.5 h-10 pl-3 pr-1 rounded-xl {{ 'ring-2 ring-white/70' if aralik == 'ozel' }}">
+            <input type="hidden" name="aralik" value="ozel">
+            <label class="sr-only" for="r_bas">Başlangıç</label>
+            <input id="r_bas" name="bas" type="date" value="{{ bas.isoformat() }}" class="bg-transparent text-[13px] text-white outline-none [color-scheme:dark]">
+            <span class="text-white/50">–</span>
+            <label class="sr-only" for="r_bit">Bitiş</label>
+            <input id="r_bit" name="bit" type="date" value="{{ bit.isoformat() }}" max="{{ bugun.isoformat() }}" class="bg-transparent text-[13px] text-white outline-none [color-scheme:dark]">
+            <button type="submit" class="h-8 px-3 rounded-lg text-[12px] font-bold text-[#1E0B4B] bg-white/90 hover:bg-white">Uygula</button>
+        </span>
+    </form>
+</div>
+{% endblock %}
+
+{% block icerik %}
+<div class="yalniz-yazdir rapor-blok" style="padding: 4px 4px 10px">
+    <div style="font: 600 22px Sora, sans-serif; color: #fff">{{ KLINIK_ADI }} · Klinik raporu</div>
+    <div style="font-size: 12px; color: #C4B5FD">{{ etiket }} ({{ bas | kisa_tarih }} – {{ bit | kisa_tarih }}) · Oluşturma: {{ bugun | kisa_tarih }}</div>
+</div>
+
+<section aria-label="Özet göstergeler" class="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4 rapor-blok">
+    {% for baslik, deger, alt, renk in [
+        ('Gelir (net tahsilat)', ozet.gelir | tl, (ozet.hizmet | tl) ~ ' hizmet verildi', 'text-amber-200'),
+        ('Tamamlanan randevu', ozet.tamamlanan, ozet.randevu ~ ' randevudan', 'text-teal-200'),
+        ('Gelmeme oranı', '%' ~ ozet.gelmeme_orani, ozet.gelmedi ~ ' hasta gelmedi', 'text-orange-200' if ozet.gelmeme_orani >= 10 else 'text-teal-200'),
+        ('Yeni hasta', ozet.yeni_hasta, ozet.tekil_hasta ~ ' farklı hasta geldi', 'text-violet-200'),
+        ('Ortalama hizmet ücreti', ozet.ort_ucret | tl, 'tamamlanan randevu başına', 'text-sky-200'),
+        ('Muayene', ozet.muayene, ozet.iptal ~ ' randevu iptal edildi', 'text-rose-200')] %}
+    <div class="giris kart cam p-5 rounded-3xl flex flex-col gap-1.5" style="animation-delay: {{ loop.index * 0.05 }}s">
+        <span class="text-[12px] font-medium {{ renk }}">{{ baslik }}</span>
+        <span class="font-sora text-[30px] font-medium leading-tight tracking-[-0.03em] text-white tabular-nums">{{ deger }}</span>
+        <span class="text-[11px] text-white/55">{{ alt }}</span>
+    </div>
+    {% endfor %}
+</section>
+
+<div class="grid grid-cols-1 xl:grid-cols-[1.7fr_1fr] gap-4">
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .2s" aria-labelledby="g1">
+        <div class="flex flex-wrap items-end justify-between gap-2">
+            <div>
+                <h2 id="g1" class="font-sora text-xl font-medium text-white">Son 12 ay</h2>
+                <p class="text-[13px] text-white/60">Aylık net gelir ve tamamlanan randevu sayısı</p>
+            </div>
+            <div class="flex gap-3 text-[12px] text-white/75">
+                <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" style="background: linear-gradient(#FDE68A, #F59E0B)"></span>Gelir</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-teal-300"></span>Randevu</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-orange-400"></span>Gelmedi</span>
+            </div>
+        </div>
+        <div class="relative">
+            <svg id="aylikGrafik" class="w-full h-auto overflow-visible" viewBox="0 0 760 260" role="img" aria-label="Son 12 ayın gelir ve randevu grafiği"></svg>
+            <div id="ipucu" class="hidden pointer-events-none absolute z-10 px-3 py-2 rounded-xl text-xs border border-white/15 whitespace-nowrap" style="background: rgba(20,12,48,0.96)"></div>
+        </div>
+    </section>
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .25s" aria-labelledby="g2">
+        <h2 id="g2" class="font-sora text-xl font-medium text-white">Randevu sonuçları</h2>
+        <div class="flex items-center gap-6">
+            <svg id="sonucHalka" class="shrink-0 -rotate-90" width="160" height="160" viewBox="0 0 42 42" aria-hidden="true"></svg>
+            <ul id="sonucLejant" class="flex-1 flex flex-col gap-2.5"></ul>
+        </div>
+    </section>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .3s" aria-labelledby="g3">
+        <div>
+            <h2 id="g3" class="font-sora text-xl font-medium text-white">En sık tanılar</h2>
+            <p class="text-[13px] text-white/60">Muayene kayıtlarından</p>
+        </div>
+        <div id="tanilar" class="flex flex-col gap-2.5"></div>
+    </section>
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .35s" aria-labelledby="g4">
+        <div>
+            <h2 id="g4" class="font-sora text-xl font-medium text-white">Hizmetler</h2>
+            <p class="text-[13px] text-white/60">Tamamlanan randevu sayısı ve ciro</p>
+        </div>
+        <div id="hizmetler" class="flex flex-col gap-2.5"></div>
+    </section>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .4s" aria-labelledby="g5">
+        <div class="flex flex-wrap items-end justify-between gap-2">
+            <div>
+                <h2 id="g5" class="font-sora text-xl font-medium text-white">Yoğunluk haritası</h2>
+                <p class="text-[13px] text-white/60">Hangi gün ve saatlerde randevu yoğun?</p>
+            </div>
+            <div class="flex items-center gap-1.5 text-[11px] text-white/60">Az
+                {% for o in [0.12, 0.3, 0.5, 0.75, 1] %}<span class="w-4 h-4 rounded" style="background: rgba(167,139,250,{{ o }})"></span>{% endfor %} Çok</div>
+        </div>
+        <div id="isiHaritasi" class="overflow-x-auto"></div>
+        <div id="isiOzet" class="text-[13px] text-white/70"></div>
+    </section>
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .45s" aria-labelledby="g6">
+        <div>
+            <h2 id="g6" class="font-sora text-xl font-medium text-white">Günlere göre gelmeme</h2>
+            <p class="text-[13px] text-white/60">Gelmeyen / sonuçlanan randevu oranı</p>
+        </div>
+        <div id="gunGelmeme" class="grid grid-cols-6 gap-2 items-end h-[170px]"></div>
+    </section>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .5s" aria-labelledby="g7">
+        <h2 id="g7" class="font-sora text-xl font-medium text-white">Hasta profili</h2>
+        <div id="cinsiyet" class="flex flex-col gap-2"></div>
+        <div id="yas" class="flex items-end gap-2 h-[120px]"></div>
+    </section>
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .55s" aria-labelledby="g8">
+        <h2 id="g8" class="font-sora text-xl font-medium text-white">En çok gelen hastalar</h2>
+        <ol id="sadik" class="flex flex-col gap-2"></ol>
+    </section>
+    <section class="giris cam p-6 rounded-[28px] flex flex-col gap-4 rapor-blok" style="animation-delay: .6s" aria-labelledby="g9">
+        <h2 id="g9" class="font-sora text-xl font-medium text-white">Stok tüketimi</h2>
+        <div id="tuketim" class="flex flex-col gap-2.5"></div>
+    </section>
+</div>
+
+<script id="raporVeri" type="application/json">{{ rapor_json | tojson }}</script>
+{% endblock %}
+
+{% block scriptler %}
+<script src="{{ url_for('static', filename='js/raporlar.js') }}"></script>
+{% endblock %}

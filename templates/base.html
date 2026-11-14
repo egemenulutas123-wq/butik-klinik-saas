@@ -41,9 +41,9 @@
 
                 {% set aktif = aktif_sayfa | default('panel') %}
                 <nav aria-label="Ana menü" class="cam-acik flex gap-0.5 p-[5px] rounded-[14px] overflow-x-auto max-w-full">
-                    {% for anahtar, adres, etiket in [('panel', url_for('panel'), 'Gösterge Paneli'), ('hastalar', url_for('hastalar_listesi'), 'Hastalar'), ('randevular', url_for('randevular_sayfasi'), 'Randevular'), ('kasa', url_for('kasa'), 'Kasa')] %}
+                    {% for anahtar, adres, etiket in [('panel', url_for('panel'), 'Panel'), ('hastalar', url_for('hastalar_listesi'), 'Hastalar'), ('randevular', url_for('randevular_sayfasi'), 'Randevular'), ('kasa', url_for('kasa'), 'Kasa'), ('stok', url_for('stok_sayfasi'), 'Stok')] + ([('raporlar', url_for('raporlar'), 'Raporlar')] if kullanici and kullanici.doktor_mu else []) %}
                     <a href="{{ adres }}" {% if aktif == anahtar %}aria-current="page"{% endif %}
-                       class="flex items-center gap-1.5 h-9 px-4 rounded-[10px] text-[13px] whitespace-nowrap transition-colors {{ 'bg-white/15 font-semibold text-white' if aktif == anahtar else 'font-medium text-violet-200 hover:text-white hover:bg-white/5' }}">{{ etiket }}{% if anahtar == 'randevular' and bekleyen_talep %}<span class="nabiz inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-teal-300 text-[#042F2E]" title="{{ bekleyen_talep }} online talep onay bekliyor">{{ bekleyen_talep }}</span>{% endif %}</a>
+                       class="flex items-center gap-1.5 h-9 px-4 rounded-[10px] text-[13px] whitespace-nowrap transition-colors {{ 'bg-white/15 font-semibold text-white' if aktif == anahtar else 'font-medium text-violet-200 hover:text-white hover:bg-white/5' }}">{{ etiket }}{% if anahtar == 'randevular' and bekleyen_talep %}<span class="nabiz inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-teal-300 text-[#042F2E]" title="{{ bekleyen_talep }} online talep onay bekliyor">{{ bekleyen_talep }}</span>{% endif %}{% if anahtar == 'stok' and kritik_stok %}<span class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-rose-400 text-white" title="{{ kritik_stok }} malzeme kritik seviyede">{{ kritik_stok }}</span>{% endif %}</a>
                     {% endfor %}
                     {% if kullanici and kullanici.doktor_mu %}
                     <a href="{{ url_for('ekip') }}" {% if aktif == 'ekip' %}aria-current="page"{% endif %}
@@ -138,7 +138,7 @@
                             <input id="gecmis_ameliyatlar" type="text" class="alan" placeholder="Örn. Apendektomi (2014)"></label>
                     </div>
                     <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Şikayet
-                        <textarea id="sikayet" rows="3" class="alan" placeholder="Hastanın başvuru şikayetini kısaca yazın"></textarea></label>
+                        <textarea id="sikayet" data-dikte rows="3" class="alan" placeholder="Hastanın başvuru şikayetini kısaca yazın"></textarea></label>
                 </fieldset>
 
                 <label id="kvkkSatiri" class="flex items-start gap-3 p-4 rounded-2xl border border-teal-300/25 bg-teal-400/[0.07] cursor-pointer">
@@ -217,6 +217,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
     <script src="{{ url_for('static', filename='js/klinik3d.js') }}"></script>
     <script src="{{ url_for('static', filename='js/klinik.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dikte.js') }}"></script>
     {% block scriptler %}{% endblock %}
 </body>
 </html>

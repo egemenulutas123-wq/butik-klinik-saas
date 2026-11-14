@@ -69,6 +69,12 @@
         <button type="button" data-kvkk-ac class="inline-flex items-center gap-1.5 h-[30px] px-3 rounded-full text-xs font-bold text-amber-100 bg-amber-400/20 border border-amber-300/40 hover:bg-amber-400/30 transition-colors">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-300 nabiz"></span>KVKK rızası bekliyor · Kaydet</button>
         {% endif %}
+        {% set gelmeme = hasta.gelmeme_sayisi %}
+        {% if gelmeme %}
+        <span class="inline-flex items-center gap-1.5 h-[30px] px-3 rounded-full text-xs font-bold text-orange-100 bg-orange-500/20 border border-orange-300/35" title="Hastanın gelmediği randevu sayısı">
+            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            {{ gelmeme }} randevuya gelmedi</span>
+        {% endif %}
     </div>
     <h1 class="giris font-sora text-5xl sm:text-[68px] font-medium leading-none tracking-[-0.035em] text-white" style="animation-delay: .25s">{{ hasta.ad_soyad }}</h1>
     <div class="giris flex flex-wrap gap-2" style="animation-delay: .4s">
@@ -211,7 +217,7 @@
                             <div class="flex justify-between text-[10px] text-violet-400"><span>Yok</span><span>Hafif</span><span>Orta</span><span>Şiddetli</span></div>
                         </div>
                         <label class="flex flex-col gap-1 text-[12px] font-medium text-violet-100">Not
-                            <textarea id="ipNot" rows="2" maxlength="1000" class="alan !text-[13px] !py-2" placeholder="Ör. Basmakla artan, yanıcı ağrı"></textarea></label>
+                            <textarea id="ipNot" data-dikte rows="2" maxlength="1000" class="alan !text-[13px] !py-2" placeholder="Ör. Basmakla artan, yanıcı ağrı"></textarea></label>
                         <label class="flex flex-col gap-1 text-[12px] font-medium text-violet-100">Muayene
                             <select id="ipMuayene" class="alan !h-10 !text-[13px]"><option value="">Muayeneye bağlama</option></select></label>
                         <div id="ipBilgi" class="hidden text-[11px] text-violet-300"></div>
@@ -538,9 +544,9 @@
             <div class="px-4 pb-4" data-vital-grup="mv_">{{ vital_alanlari('mv_', kompakt=True) }}</div>
         </details>
         <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Bulgular
-            <textarea id="m_bulgular" rows="3" class="alan" placeholder="Fizik muayene, tahlil sonuçları…"></textarea></label>
+            <textarea id="m_bulgular" data-dikte rows="3" class="alan" placeholder="Fizik muayene, tahlil sonuçları…"></textarea></label>
         <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Tedavi / plan
-            <textarea id="m_tedavi" rows="3" class="alan" placeholder="Önerilen tedavi, yönlendirmeler…"></textarea></label>
+            <textarea id="m_tedavi" data-dikte rows="3" class="alan" placeholder="Önerilen tedavi, yönlendirmeler…"></textarea></label>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
             <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Kontrol tarihi
                 <input id="m_kontrol" type="date" class="alan" min="{{ bugun.isoformat() }}"></label>
@@ -600,7 +606,7 @@
                 </div>
 
                 <label class="flex flex-col gap-1.5 text-[13px] font-medium text-violet-100">Hekim notu
-                    <textarea id="r_notlar" rows="2" class="alan" placeholder="Örn. 6 hafta sonra TSH kontrolü"></textarea></label>
+                    <textarea id="r_notlar" data-dikte rows="2" class="alan" placeholder="Örn. 6 hafta sonra TSH kontrolü"></textarea></label>
             </div>
 
             <aside class="flex flex-col gap-4 p-6 sm:p-8 bg-black/10" aria-live="polite" aria-labelledby="kontrolBaslik">

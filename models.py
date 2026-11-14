@@ -138,6 +138,10 @@ class Hasta(db.Model):
         return bool(a) and a not in ('yok', '-', 'bilinmiyor')
 
     @property
+    def gelmeme_sayisi(self):
+        return sum(1 for r in self.randevular if r.durum == 'Gelmedi')
+
+    @property
     def bakiye(self):
         """Kuruş cinsinden açık bakiye: pozitif = hastanın borcu, negatif = hasta alacaklı."""
         return sum(h.bakiye_etkisi for h in self.kasa_hareketleri if not h.iptal)
@@ -169,9 +173,10 @@ class Randevu(db.Model):
     tarih = db.Column(db.Date, nullable=False)
     saat = db.Column(db.String(5), nullable=False)  # "HH:MM"
     islem_turu = db.Column(db.String(60), default='Genel Muayene')
-    durum = db.Column(db.String(20), default='Bekliyor')  # Bekliyor / Onaylandı / Tamamlandı / İptal
+    durum = db.Column(db.String(20), default='Bekliyor')  # Bekliyor / Onaylandı / Tamamlandı / Gelmedi / İptal
     notlar = db.Column(db.Text)
     olusturma_tarihi = db.Column(db.DateTime, default=datetime.utcnow)
+    hatirlatma = db.Column(db.DateTime)  # hatırlatma mesajının gönderildiği an
 
     hasta_id = db.Column(db.Integer, db.ForeignKey('hasta.id'), nullable=False)
     doktor_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
@@ -189,6 +194,8 @@ class Randevu(db.Model):
             'hasta_id': self.hasta_id,
             'hasta_ad': self.hasta.ad_soyad if self.hasta else '',
             'muayene_var': self.muayene is not None,
+            'hatirlatildi': self.hatirlatma is not None,
+            'hasta_gelmeme': self.hasta.gelmeme_sayisi if self.hasta else 0,
         }
 
 
@@ -420,3 +427,82 @@ class VucutIsareti(db.Model):
             'muayene_id': self.muayene_id, 'muayene_tani': self.muayene.tani if self.muayene else None,
             'doktor': self.doktor.gorunen_ad if self.doktor else '',
         }
+
+
+# ------------------------------------------------------------------
+# Stok ve malzeme takibi
+# ------------------------------------------------------------------
+class Malzeme(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ad = db.Column(db.String(100), nullable=False)
+    kategori = db.Column(db.String(40), nullable=False, default='Sarf malzemesi')
+    birim = db.Column(db.String(20), nullable=False, default='adet')
+    miktar = db.Column(db.Float, nullable=False, default=0)
+    kritik = db.Column(db.Float, nullable=False, default=0)       # bu seviyeye inince uyarı
+    son_kullanma = db.Column(db.Date)
+    birim_fiyat = db.Column(db.Integer)                            # kuruş, isteğe bağlı
+    notlar = db.Column(db.String(300))
+    aktif = db.Column(db.Boolean, nullable=False, default=True)
+    olusturma = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    hareketler = db.relationship('StokHareketi', backref='malzeme', lazy=True,
+                                 order_by='StokHareketi.tarih.desc()', cascade='all, delete-orphan')
+
+    @property
+    def durum(self):
+        if self.miktar <= 0:
+            return 'tukendi'
+        if self.miktar <= self.kritik:
+            return 'kritik'
+        return 'normal'
+
+    @property
+    def skt_gun(self):
+        return (self.son_kullanma - date.today()).days if self.son_kullanma else None
+
+    def sozluk(self):
+        return {
+            'id': self.id, 'ad': self.ad, 'kategori': self.kategori, 'birim': self.birim,
+            'miktar': round(self.miktar, 2), 'kritik': round(self.kritik, 2), 'durum': self.durum,
+            'son_kullanma': self.son_kullanma.isoformat() if self.son_kullanma else None, 'skt_gun': self.skt_gun,
+            'birim_fiyat': self.birim_fiyat, 'notlar': self.notlar or '', 'aktif': bool(self.aktif),
+        }
+
+
+class StokHareketi(db.Model):
+    TURLER = {'giris': 'Giriş', 'cikis': 'Çıkış', 'sayim': 'Sayım', 'otomatik': 'Hizmette kullanıldı'}
+
+    id = db.Column(db.Integer, primary_key=True)
+    tarih = db.Column(db.DateTime, nullable=False, default=datetime.now, index=True)
+    tur = db.Column(db.String(12), nullable=False)
+    miktar = db.Column(db.Float, nullable=False)       # işaretli: + giriş, − çıkış
+    onceki = db.Column(db.Float, nullable=False)
+    sonraki = db.Column(db.Float, nullable=False)
+    aciklama = db.Column(db.String(200))
+
+    malzeme_id = db.Column(db.Integer, db.ForeignKey('malzeme.id'), nullable=False)
+    kullanici_id = db.Column(db.Integer, db.ForeignKey('doktor.id'), nullable=True)
+    randevu_id = db.Column(db.Integer, db.ForeignKey('randevu.id'), nullable=True)
+    kullanici = db.relationship('Doktor', lazy=True)
+    randevu = db.relationship('Randevu', lazy=True)
+
+    def sozluk(self):
+        return {
+            'id': self.id, 'tarih': self.tarih.isoformat(timespec='minutes'), 'tarih_metin': self.tarih.strftime('%d.%m.%Y %H:%M'),
+            'tur': self.tur, 'tur_adi': self.TURLER.get(self.tur, self.tur), 'miktar': round(self.miktar, 2),
+            'onceki': round(self.onceki, 2), 'sonraki': round(self.sonraki, 2), 'aciklama': self.aciklama or '',
+            'malzeme_id': self.malzeme_id, 'malzeme': self.malzeme.ad if self.malzeme else '',
+            'birim': self.malzeme.birim if self.malzeme else '',
+            'kullanici': self.kullanici.gorunen_ad if self.kullanici else '',
+            'hasta': self.randevu.hasta.ad_soyad if self.randevu and self.randevu.hasta else '',
+        }
+
+
+class IslemMalzemesi(db.Model):
+    """Bir hizmet (randevu işlem türü) tamamlandığında stoktan otomatik düşülecek malzemeler."""
+    __table_args__ = (db.UniqueConstraint('islem_turu', 'malzeme_id'),)
+    id = db.Column(db.Integer, primary_key=True)
+    islem_turu = db.Column(db.String(60), nullable=False, index=True)
+    malzeme_id = db.Column(db.Integer, db.ForeignKey('malzeme.id'), nullable=False)
+    miktar = db.Column(db.Float, nullable=False, default=1)
+    malzeme = db.relationship('Malzeme', lazy=True)

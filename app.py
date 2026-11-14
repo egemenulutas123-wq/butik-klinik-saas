@@ -16,7 +16,7 @@ from flask import (Flask, jsonify, render_template, request, session, redirect, 
 from sqlalchemy import inspect, text, func, case
 
 from models import (db, Doktor, Hasta, Randevu, Muayene, Recete, ReceteKalemi, Vital, IslemKaydi, ROLLER,
-                    Ayar, OnlineTalep, Tarife, KasaHareketi, VucutIsareti)
+                    Ayar, OnlineTalep, Tarife, KasaHareketi, VucutIsareti, Malzeme, StokHareketi, IslemMalzemesi)
 from ilaclar import recete_kontrol, ilac_listesi, ilac_bul, UYARI_NOTU
 
 app = Flask(__name__)
@@ -90,7 +90,7 @@ AYLAR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz',
 SAAT_DILIMLERI = [f'{s:02d}:{d:02d}' for s in range(9, 18) for d in (0, 30)]
 ISLEM_TURLERI = ['Genel Muayene', 'Kontrol Muayenesi', 'Kan Tahlili', 'Ultrason',
                  'Pansuman', 'Enjeksiyon', 'EKG', 'Konsültasyon']
-DURUMLAR = ['Bekliyor', 'Onaylandı', 'Tamamlandı', 'İptal']
+DURUMLAR = ['Bekliyor', 'Onaylandı', 'Tamamlandı', 'Gelmedi', 'İptal']
 KAN_GRUPLARI = ['A Rh+', 'A Rh−', 'B Rh+', 'B Rh−', 'AB Rh+', 'AB Rh−', '0 Rh+', '0 Rh−']
 EMAIL_DESENI = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
@@ -99,11 +99,12 @@ ISLEM_ADLARI = {
     'goruntuleme': 'Görüntüleme', 'olusturma': 'Oluşturma', 'guncelleme': 'Güncelleme', 'silme': 'Silme',
     'yazdirma': 'Yazdırma', 'disa_aktarma': 'Dışa aktarma', 'riza': 'Rıza', 'yedek': 'Yedekleme',
     'geri_yukleme': 'Geri yükleme', 'yetki': 'Yetki', 'tahsilat': 'Tahsilat', 'iptal': 'İptal',
-    'online': 'Online talep', 'ayar': 'Ayar',
+    'online': 'Online talep', 'ayar': 'Ayar', 'hatirlatma': 'Hatırlatma', 'stok': 'Stok',
 }
 HEDEF_ADLARI = {'hasta': 'Hasta', 'randevu': 'Randevu', 'muayene': 'Muayene', 'recete': 'Reçete',
                 'vital': 'Vital', 'kullanici': 'Kullanıcı', 'yedek': 'Yedek', 'oturum': 'Oturum', 'gunluk': 'Günlük',
-                'kasa': 'Kasa', 'talep': 'Online talep', 'isaret': 'Vücut işareti', 'ayar': 'Ayar'}
+                'kasa': 'Kasa', 'talep': 'Online talep', 'isaret': 'Vücut işareti', 'ayar': 'Ayar',
+                'malzeme': 'Malzeme', 'rapor': 'Rapor'}
 YONTEMLER = ['Nakit', 'Kart', 'Havale']
 
 
@@ -191,11 +192,13 @@ def tutar_coz(deger):
 
 @app.context_processor
 def ortak_degiskenler():
-    bekleyen_talep = 0
+    bekleyen_talep = kritik_stok = 0
     if g.get('kullanici'):
         bekleyen_talep = OnlineTalep.query.filter_by(durum='Bekliyor').count()
+        kritik_stok = Malzeme.query.filter(Malzeme.aktif.is_(True), Malzeme.miktar <= Malzeme.kritik).count()
     return {
         'bekleyen_talep': bekleyen_talep,
+        'kritik_stok': kritik_stok,
         'bugun': date.today(),
         'ISLEM_TURLERI': ISLEM_TURLERI,
         'KAN_GRUPLARI': KAN_GRUPLARI,
@@ -443,7 +446,8 @@ def kullanici_sil(kid):
         return hata('Sistemde en az bir doktor kalmalıdır.')
     for model, alan in ((Randevu, 'doktor_id'), (Muayene, 'doktor_id'), (Recete, 'doktor_id'),
                         (Vital, 'olcen_id'), (IslemKaydi, 'kullanici_id'), (KasaHareketi, 'kullanici_id'),
-                        (KasaHareketi, 'iptal_eden_id'), (OnlineTalep, 'isleyen_id'), (VucutIsareti, 'doktor_id')):
+                        (KasaHareketi, 'iptal_eden_id'), (OnlineTalep, 'isleyen_id'), (VucutIsareti, 'doktor_id'),
+                        (StokHareketi, 'kullanici_id')):
         model.query.filter(getattr(model, alan) == k.id).update({alan: None})
     islem_kaydet('yetki', 'kullanici', k.id, f'{k.gorunen_ad} ekipten kaldırıldı')
     db.session.delete(k)
@@ -681,6 +685,7 @@ def hasta_sil(hasta_id):
     randevu_idleri = [r.id for r in hasta.randevular]
     OnlineTalep.query.filter(OnlineTalep.hasta_id == hasta.id).update({'hasta_id': None})
     if randevu_idleri:
+        StokHareketi.query.filter(StokHareketi.randevu_id.in_(randevu_idleri)).update({'randevu_id': None}, synchronize_session=False)
         OnlineTalep.query.filter(OnlineTalep.randevu_id.in_(randevu_idleri)).update({'randevu_id': None}, synchronize_session=False)
     islem_kaydet('silme', 'hasta', hasta.id, f'{ad} ve tüm tıbbi kayıtları silindi')
     db.session.delete(hasta)
@@ -821,15 +826,26 @@ def randevu_durum(randevu_id):
     durum = (request.get_json(silent=True) or {}).get('durum')
     if durum not in DURUMLAR:
         return hata('Geçersiz durum.')
+    if durum == 'Gelmedi' and randevu.tarih > date.today():
+        return hata('Henüz gelmemiş bir randevu "Gelmedi" olarak işaretlenemez.')
     eski = randevu.durum
     randevu.durum = durum
     islem_kaydet('guncelleme', 'randevu', randevu.id, f'Durum: {eski} → {durum}')
     ucret = randevu_ucretlendir(randevu) if durum == 'Tamamlandı' else None
+    stok = stok_dus(randevu) if durum == 'Tamamlandı' else None
     db.session.commit()
-    mesaj = 'Randevu durumu güncellendi.'
-    if ucret:
-        mesaj = f'Randevu tamamlandı · {tl(ucret.tutar)} hizmet ücreti hastanın hesabına eklendi.'
-    return jsonify({'mesaj': mesaj, 'randevu': randevu.sozluk()})
+    parcalar = []
+    if durum == 'Tamamlandı':
+        parcalar.append('Randevu tamamlandı')
+        if ucret:
+            parcalar.append(f'{tl(ucret.tutar)} hizmet ücreti hesaba eklendi')
+        if stok and stok['adet']:
+            parcalar.append(f"stoktan {stok['adet']} kalem düşüldü")
+    mesaj = ' · '.join(parcalar) + '.' if parcalar else 'Randevu durumu güncellendi.'
+    if durum == 'Gelmedi':
+        mesaj = f'{randevu.hasta.ad_soyad} gelmedi olarak işaretlendi ({randevu.hasta.gelmeme_sayisi}. kez).'
+    return jsonify({'mesaj': mesaj, 'randevu': randevu.sozluk(),
+                    'kritik': stok['kritik'] if stok else []})
 
 
 @app.route('/api/dolu_saatler')
@@ -964,6 +980,7 @@ def muayene_ekle():
     if randevu:
         randevu.durum = 'Tamamlandı'
         randevu_ucretlendir(randevu)
+        stok_dus(randevu)
     if veri.get('guncel_tani'):
         hasta.hastalik_tanisi = tani[:100]
     islem_kaydet('olusturma', 'muayene', muayene.id, f'{hasta.ad_soyad}: {tani}')
@@ -2081,6 +2098,448 @@ def vucut_isareti_sil(isaret_id):
 
 
 # ------------------------------------------------------------------
+# Randevu hatırlatmaları
+# ------------------------------------------------------------------
+VARSAYILAN_AYARLAR['hatirlatma_sablonu'] = (
+    'Merhaba {ad}, {klinik} için {gun} {tarih} saat {saat} {islem} randevunuzu hatırlatırız. '
+    'Gelemeyecekseniz lütfen bize haber verin. Sağlıklı günler dileriz.')
+
+
+def hatirlatma_metni(r, sablon=None):
+    sablon = sablon or ayar('hatirlatma_sablonu')
+    degerler = {'ad': r.hasta.ad_soyad.split()[0], 'adsoyad': r.hasta.ad_soyad, 'klinik': KLINIK_ADI,
+                'gun': GUNLER[r.tarih.weekday()], 'tarih': f'{r.tarih.day} {AYLAR[r.tarih.month - 1]}',
+                'saat': r.saat, 'islem': r.islem_turu}
+    try:
+        return sablon.format(**degerler)
+    except (KeyError, IndexError, ValueError):
+        return VARSAYILAN_AYARLAR['hatirlatma_sablonu'].format(**degerler)
+
+
+@app.route('/api/hatirlatmalar')
+def hatirlatma_listesi():
+    tarih = tarih_coz(request.args.get('tarih'))
+    if not tarih:
+        # Varsayılan: yarından itibaren aktif randevusu olan ilk gün (en fazla 7 gün ileri)
+        tarih = date.today() + timedelta(days=1)
+        ilk = (Randevu.query.filter(Randevu.tarih >= tarih, Randevu.tarih <= tarih + timedelta(days=6),
+                                    Randevu.durum.in_(['Bekliyor', 'Onaylandı'])).order_by(Randevu.tarih.asc()).first())
+        if ilk:
+            tarih = ilk.tarih
+    sablon = ayar('hatirlatma_sablonu')
+    liste = []
+    for r in (Randevu.query.filter(Randevu.tarih == tarih, Randevu.durum.in_(['Bekliyor', 'Onaylandı']))
+              .order_by(Randevu.saat.asc()).all()):
+        metin = hatirlatma_metni(r, sablon)
+        liste.append({'id': r.id, 'saat': r.saat, 'hasta_id': r.hasta_id, 'ad_soyad': r.hasta.ad_soyad,
+                      'telefon': r.hasta.telefon, 'islem_turu': r.islem_turu, 'durum': r.durum,
+                      'gelmeme': r.hasta.gelmeme_sayisi, 'metin': metin,
+                      'whatsapp': whatsapp_link(r.hasta.telefon, metin),
+                      'hatirlatma': r.hatirlatma.strftime('%d.%m %H:%M') if r.hatirlatma else None})
+    fark = (tarih - date.today()).days
+    goreli = {0: 'Bugün', 1: 'Yarın'}.get(fark, f'{fark} gün sonra' if fark > 0 else f'{-fark} gün önce')
+    return jsonify({'tarih': tarih.isoformat(), 'baslik': f'{tarih.day} {AYLAR[tarih.month - 1]} {GUNLER[tarih.weekday()]}',
+                    'goreli': goreli, 'onceki': (tarih - timedelta(days=1)).isoformat(), 'sonraki': (tarih + timedelta(days=1)).isoformat(),
+                    'sablon': sablon, 'liste': liste})
+
+
+@app.route('/api/randevu/<int:randevu_id>/hatirlatma', methods=['POST'])
+def hatirlatma_isaretle(randevu_id):
+    r = db.get_or_404(Randevu, randevu_id)
+    geri_al = bool((request.get_json(silent=True) or {}).get('geri_al'))
+    r.hatirlatma = None if geri_al else datetime.now()
+    if not geri_al:
+        islem_kaydet('hatirlatma', 'randevu', r.id, f'{r.hasta.ad_soyad}: {kisa_tarih(r.tarih)} {r.saat} hatırlatması gönderildi')
+    db.session.commit()
+    return jsonify({'mesaj': 'Hatırlatma geri alındı.' if geri_al else 'Hatırlatıldı olarak işaretlendi.',
+                    'hatirlatma': r.hatirlatma.strftime('%d.%m %H:%M') if r.hatirlatma else None})
+
+
+@app.route('/api/hatirlatma_sablonu', methods=['POST'])
+def hatirlatma_sablonu_kaydet():
+    sablon = ((request.get_json(silent=True) or {}).get('sablon') or '').strip()
+    if len(sablon) < 10 or len(sablon) > 600:
+        return hata('Mesaj 10–600 karakter olmalıdır.')
+    try:
+        sablon.format(ad='', adsoyad='', klinik='', gun='', tarih='', saat='', islem='')
+    except (KeyError, IndexError, ValueError):
+        return hata('Mesajda yalnızca {ad}, {adsoyad}, {klinik}, {gun}, {tarih}, {saat}, {islem} kullanılabilir.')
+    ayar_yaz('hatirlatma_sablonu', sablon)
+    islem_kaydet('ayar', 'ayar', None, 'Hatırlatma mesajı güncellendi')
+    db.session.commit()
+    return jsonify({'mesaj': 'Hatırlatma mesajı kaydedildi.'})
+
+
+# ------------------------------------------------------------------
+# Stok ve malzeme takibi
+# ------------------------------------------------------------------
+BIRIMLER = ['adet', 'kutu', 'paket', 'şişe', 'ampul', 'flakon', 'çift', 'rulo', 'ml', 'gr']
+MALZEME_KATEGORILERI = ['Sarf malzemesi', 'İlaç', 'Aşı', 'Pansuman', 'Laboratuvar', 'Koruyucu ekipman', 'Temizlik', 'Diğer']
+
+
+def miktar_coz(deger, alan='Miktar', sifir_olabilir=True):
+    try:
+        m = float(str(deger).replace(',', '.'))
+    except (TypeError, ValueError):
+        raise ValueError(f'{alan} sayı olmalıdır.')
+    if not math.isfinite(m) or m < 0 or m > 1_000_000 or (m == 0 and not sifir_olabilir):
+        raise ValueError(f'{alan} geçerli değil.')
+    return round(m, 2)
+
+
+def stok_hareketi(m, tur, miktar, aciklama='', randevu=None):
+    onceki = m.miktar
+    m.miktar = round(max(0.0, onceki + miktar), 2)
+    h = StokHareketi(malzeme_id=m.id, tur=tur, miktar=round(m.miktar - onceki, 2), onceki=onceki, sonraki=m.miktar,
+                     aciklama=aciklama[:200] or None, kullanici_id=g.kullanici.id if g.get('kullanici') else None,
+                     randevu_id=randevu.id if randevu else None, tarih=datetime.now())
+    db.session.add(h)
+    return h
+
+
+def stok_dus(randevu):
+    """Tamamlanan hizmetin malzemelerini stoktan bir kez düşer."""
+    if StokHareketi.query.filter_by(randevu_id=randevu.id, tur='otomatik').first():
+        return {'adet': 0, 'kritik': []}
+    kalemler = IslemMalzemesi.query.filter_by(islem_turu=randevu.islem_turu).all()
+    kritik = []
+    adet = 0
+    for k in kalemler:
+        m = k.malzeme
+        if not m or not m.aktif:
+            continue
+        eksik = max(0.0, k.miktar - m.miktar)
+        aciklama = f'{randevu.islem_turu} · {randevu.hasta.ad_soyad}' + (f' · stok yetersizdi ({eksik:g} {m.birim} eksik)' if eksik else '')
+        stok_hareketi(m, 'otomatik', -k.miktar, aciklama, randevu)
+        adet += 1
+        if m.durum != 'normal':
+            kritik.append(f'{m.ad}: {m.miktar:g} {m.birim} kaldı')
+    return {'adet': adet, 'kritik': kritik}
+
+
+@app.route('/stok')
+def stok_sayfasi():
+    malzemeler = Malzeme.query.filter_by(aktif=True).order_by(Malzeme.ad.asc()).all()
+    hareketler = StokHareketi.query.order_by(StokHareketi.tarih.desc()).limit(300).all()
+    ay_bas = datetime.combine(date.today().replace(day=1), time.min)
+    ay_tuketim = (StokHareketi.query.filter(StokHareketi.tarih >= ay_bas, StokHareketi.tur.in_(['otomatik', 'cikis'])).all())
+    ay_tuketim_deger = sum(-h.miktar * (h.malzeme.birim_fiyat or 0) for h in ay_tuketim if h.malzeme)
+    eslemeler = {}
+    for e in IslemMalzemesi.query.all():
+        if e.malzeme and e.malzeme.aktif:
+            eslemeler.setdefault(e.islem_turu, []).append({'id': e.id, 'malzeme_id': e.malzeme_id, 'malzeme': e.malzeme.ad,
+                                                           'birim': e.malzeme.birim, 'miktar': e.miktar})
+    return render_template(
+        'stok.html', aktif_sayfa='stok',
+        malzemeler_json=[m.sozluk() for m in malzemeler],
+        hareketler_json=[h.sozluk() for h in hareketler],
+        eslemeler_json=eslemeler, islem_turleri=ISLEM_TURLERI, birimler=BIRIMLER, kategoriler=MALZEME_KATEGORILERI,
+        ozet={
+            'toplam': len(malzemeler),
+            'kritik': len([m for m in malzemeler if m.durum == 'kritik']),
+            'tukenen': len([m for m in malzemeler if m.durum == 'tukendi']),
+            'skt': len([m for m in malzemeler if m.skt_gun is not None and m.skt_gun <= 30]),
+            'deger': int(sum(m.miktar * (m.birim_fiyat or 0) for m in malzemeler)),
+            'ay_tuketim_adet': len(ay_tuketim), 'ay_tuketim_deger': int(ay_tuketim_deger),
+        },
+    )
+
+
+def malzeme_alanlari(m, v, yeni):
+    ad = re.sub(r'\s+', ' ', (v.get('ad') or '').strip())
+    if len(ad) < 2 or len(ad) > 100:
+        raise ValueError('Malzeme adını yazın.')
+    m.ad = ad
+    m.kategori = (v.get('kategori') or 'Sarf malzemesi').strip()[:40] or 'Sarf malzemesi'
+    birim = (v.get('birim') or 'adet').strip()
+    if birim not in BIRIMLER:
+        raise ValueError('Geçerli bir birim seçin.')
+    m.birim = birim
+    m.kritik = miktar_coz(v.get('kritik') or 0, 'Kritik seviye')
+    skt = v.get('son_kullanma')
+    m.son_kullanma = tarih_coz(skt) if skt else None
+    if skt and not m.son_kullanma:
+        raise ValueError('Son kullanma tarihi geçerli değil.')
+    fiyat = v.get('birim_fiyat')
+    if fiyat in (None, ''):
+        m.birim_fiyat = None
+    else:
+        k = tutar_coz(fiyat)
+        if k is None or k < 0 or k > 10_000_000:
+            raise ValueError('Birim fiyat geçerli değil.')
+        m.birim_fiyat = k
+    m.notlar = (v.get('notlar') or '').strip()[:300] or None
+
+
+@app.route('/api/malzeme', methods=['POST'])
+def malzeme_ekle():
+    v = request.get_json(silent=True) or {}
+    m = Malzeme(miktar=0)
+    try:
+        malzeme_alanlari(m, v, True)
+        baslangic = miktar_coz(v.get('miktar') or 0, 'Başlangıç miktarı')
+    except ValueError as e:
+        return hata(str(e))
+    if Malzeme.query.filter(func.lower(Malzeme.ad) == m.ad.lower(), Malzeme.aktif.is_(True)).first():
+        return hata('Bu adla bir malzeme zaten var.', 409)
+    db.session.add(m)
+    db.session.flush()
+    if baslangic:
+        stok_hareketi(m, 'giris', baslangic, 'Açılış stoku')
+    islem_kaydet('olusturma', 'malzeme', m.id, f'{m.ad} stok kartı açıldı ({baslangic:g} {m.birim})')
+    db.session.commit()
+    return jsonify({'mesaj': f'{m.ad} eklendi.', 'malzeme': m.sozluk()}), 201
+
+
+@app.route('/api/malzeme/<int:malzeme_id>', methods=['PUT'])
+def malzeme_guncelle(malzeme_id):
+    m = db.get_or_404(Malzeme, malzeme_id)
+    try:
+        malzeme_alanlari(m, request.get_json(silent=True) or {}, False)
+    except ValueError as e:
+        return hata(str(e))
+    islem_kaydet('guncelleme', 'malzeme', m.id, f'{m.ad} stok kartı güncellendi')
+    db.session.commit()
+    return jsonify({'mesaj': 'Malzeme güncellendi.', 'malzeme': m.sozluk()})
+
+
+@app.route('/api/malzeme/<int:malzeme_id>', methods=['DELETE'])
+@doktor_gerekli
+def malzeme_sil(malzeme_id):
+    m = db.get_or_404(Malzeme, malzeme_id)
+    m.aktif = False
+    IslemMalzemesi.query.filter_by(malzeme_id=m.id).delete()
+    islem_kaydet('silme', 'malzeme', m.id, f'{m.ad} stok kartı kaldırıldı (geçmiş hareketler saklandı)')
+    db.session.commit()
+    return jsonify({'mesaj': f'{m.ad} kaldırıldı.'})
+
+
+@app.route('/api/malzeme/<int:malzeme_id>/hareket', methods=['POST'])
+def malzeme_hareket(malzeme_id):
+    m = db.get_or_404(Malzeme, malzeme_id)
+    if not m.aktif:
+        return hata('Bu malzeme kaldırılmış.', 404)
+    v = request.get_json(silent=True) or {}
+    tur = v.get('tur')
+    if tur not in ('giris', 'cikis', 'sayim'):
+        return hata('Geçersiz hareket türü.')
+    try:
+        miktar = miktar_coz(v.get('miktar'), 'Miktar', sifir_olabilir=(tur == 'sayim'))
+    except ValueError as e:
+        return hata(str(e))
+    aciklama = (v.get('aciklama') or '').strip()[:200]
+    if tur == 'cikis' and miktar > m.miktar:
+        return hata(f'Stokta yalnızca {m.miktar:g} {m.birim} var.')
+    if tur == 'sayim':
+        fark = round(miktar - m.miktar, 2)
+        if fark == 0:
+            return hata('Sayılan miktar mevcut stokla aynı.')
+        h = stok_hareketi(m, 'sayim', fark, aciklama or 'Sayım düzeltmesi')
+    else:
+        h = stok_hareketi(m, tur, miktar if tur == 'giris' else -miktar, aciklama)
+    if tur == 'giris' and v.get('son_kullanma'):
+        skt = tarih_coz(v.get('son_kullanma'))
+        if skt:
+            m.son_kullanma = skt
+    islem_kaydet('stok', 'malzeme', m.id, f'{m.ad}: {StokHareketi.TURLER[tur]} {h.miktar:+g} {m.birim} → {m.miktar:g}')
+    db.session.commit()
+    adlar = {'giris': 'Stok girişi', 'cikis': 'Stok çıkışı', 'sayim': 'Sayım'}
+    uyari = f' · {m.ad} kritik seviyede!' if m.durum != 'normal' else ''
+    return jsonify({'mesaj': f'{adlar[tur]} kaydedildi: {m.ad} {m.miktar:g} {m.birim}{uyari}',
+                    'malzeme': m.sozluk(), 'hareket': h.sozluk()})
+
+
+@app.route('/api/islem_malzemesi', methods=['POST'])
+def islem_malzemesi_kaydet():
+    v = request.get_json(silent=True) or {}
+    islem = v.get('islem_turu')
+    if islem not in ISLEM_TURLERI:
+        return hata('Geçersiz hizmet.')
+    m = db.session.get(Malzeme, v.get('malzeme_id') or 0)
+    if not m or not m.aktif:
+        return hata('Malzeme seçin.')
+    try:
+        miktar = miktar_coz(v.get('miktar') or 1, 'Miktar', sifir_olabilir=False)
+    except ValueError as e:
+        return hata(str(e))
+    e = IslemMalzemesi.query.filter_by(islem_turu=islem, malzeme_id=m.id).first()
+    if e is None:
+        e = IslemMalzemesi(islem_turu=islem, malzeme_id=m.id)
+        db.session.add(e)
+    e.miktar = miktar
+    islem_kaydet('ayar', 'malzeme', m.id, f'{islem} hizmetinde {miktar:g} {m.birim} {m.ad} kullanılır')
+    db.session.commit()
+    return jsonify({'mesaj': f'{islem}: {miktar:g} {m.birim} {m.ad}', 'esleme': {
+        'id': e.id, 'malzeme_id': m.id, 'malzeme': m.ad, 'birim': m.birim, 'miktar': e.miktar}})
+
+
+@app.route('/api/islem_malzemesi/<int:esleme_id>', methods=['DELETE'])
+def islem_malzemesi_sil(esleme_id):
+    e = db.get_or_404(IslemMalzemesi, esleme_id)
+    islem_kaydet('ayar', 'malzeme', e.malzeme_id, f'{e.islem_turu} hizmetinden {e.malzeme.ad if e.malzeme else ""} çıkarıldı')
+    db.session.delete(e)
+    db.session.commit()
+    return jsonify({'mesaj': 'Hizmetten çıkarıldı.'})
+
+
+# ------------------------------------------------------------------
+# Raporlar (yalnızca doktor)
+# ------------------------------------------------------------------
+def rapor_araligi():
+    bugun = date.today()
+    tur = request.args.get('aralik', 'ay')
+    if tur == 'ozel':
+        bas, bit = tarih_coz(request.args.get('bas')), tarih_coz(request.args.get('bit'))
+        if bas and bit and bas <= bit:
+            return tur, bas, bit, f'{kisa_tarih(bas)} – {kisa_tarih(bit)}'
+        tur = 'ay'
+    if tur == '3ay':
+        bas = (bugun.replace(day=1) - timedelta(days=62)).replace(day=1)
+        return tur, bas, bugun, f'Son 3 ay ({AYLAR[bas.month - 1]} – {AYLAR[bugun.month - 1]})'
+    if tur == 'yil':
+        return tur, bugun.replace(month=1, day=1), bugun, f'{bugun.year} yılı'
+    if tur == 'gecen_ay':
+        bit = bugun.replace(day=1) - timedelta(days=1)
+        return tur, bit.replace(day=1), bit, f'{AYLAR[bit.month - 1]} {bit.year}'
+    return 'ay', bugun.replace(day=1), bugun, f'{AYLAR[bugun.month - 1]} {bugun.year}'
+
+
+def yas_grubu(h):
+    y = h.yas
+    if y is None:
+        return 'Bilinmiyor'
+    for sinir, ad in ((18, '0–17'), (35, '18–34'), (50, '35–49'), (65, '50–64')):
+        if y < sinir:
+            return ad
+    return '65+'
+
+
+@app.route('/raporlar')
+@doktor_gerekli
+def raporlar():
+    tur, bas, bit, etiket = rapor_araligi()
+    bas_dt, bit_dt = datetime.combine(bas, time.min), datetime.combine(bit, time.max)
+    randevular = Randevu.query.filter(Randevu.tarih >= bas, Randevu.tarih <= bit).all()
+    durum_say = {d: 0 for d in DURUMLAR}
+    for r in randevular:
+        durum_say[r.durum] = durum_say.get(r.durum, 0) + 1
+    sonuclanan = durum_say['Tamamlandı'] + durum_say['Gelmedi']
+    hareketler = KasaHareketi.query.filter(KasaHareketi.tarih >= bas_dt, KasaHareketi.tarih <= bit_dt,
+                                           KasaHareketi.iptal.is_(False)).all()
+    oz = kasa_ozeti(hareketler)
+    yeni_hasta = Hasta.query.filter(Hasta.kayit_tarihi >= bas_dt, Hasta.kayit_tarihi <= bit_dt).count()
+    muayeneler = Muayene.query.filter(Muayene.tarih >= bas_dt, Muayene.tarih <= bit_dt).all()
+
+    # Son 12 ay (bitiş ayına kadar)
+    aylar = []
+    y, a = bit.year, bit.month
+    for _ in range(12):
+        aylar.append((y, a))
+        a -= 1
+        if a == 0:
+            y, a = y - 1, 12
+    aylar.reverse()
+    ay_bas = date(aylar[0][0], aylar[0][1], 1)
+    ay_hareket = KasaHareketi.query.filter(KasaHareketi.tarih >= datetime.combine(ay_bas, time.min),
+                                           KasaHareketi.tarih <= bit_dt, KasaHareketi.iptal.is_(False)).all()
+    ay_randevu = Randevu.query.filter(Randevu.tarih >= ay_bas, Randevu.tarih <= bit).all()
+    aylik = {k: {'gelir': 0, 'tamamlanan': 0, 'gelmedi': 0} for k in aylar}
+    for h in ay_hareket:
+        k = (h.tarih.year, h.tarih.month)
+        if k in aylik and h.tur in ('tahsilat', 'iade'):
+            aylik[k]['gelir'] += h.tutar if h.tur == 'tahsilat' else -h.tutar
+    for r in ay_randevu:
+        k = (r.tarih.year, r.tarih.month)
+        if k in aylik:
+            if r.durum == 'Tamamlandı':
+                aylik[k]['tamamlanan'] += 1
+            elif r.durum == 'Gelmedi':
+                aylik[k]['gelmedi'] += 1
+    aylik_liste = [{'etiket': f'{AYLAR[a - 1][:3]}', 'yil': y, **aylik[(y, a)]} for y, a in aylar]
+
+    # Tanılar
+    tanilar = {}
+    for m in muayeneler:
+        t = (m.tani or '').strip()
+        if t:
+            tanilar[t] = tanilar.get(t, 0) + 1
+    tani_liste = sorted(tanilar.items(), key=lambda x: -x[1])[:8]
+
+    # Hizmetler: sayı ve gelir
+    hizmet = {}
+    for r in randevular:
+        if r.durum == 'Tamamlandı':
+            hizmet.setdefault(r.islem_turu, {'adet': 0, 'ciro': 0})['adet'] += 1
+    for h in hareketler:
+        if h.tur == 'ucret' and h.randevu:
+            hizmet.setdefault(h.randevu.islem_turu, {'adet': 0, 'ciro': 0})['ciro'] += h.tutar
+    hizmet_liste = sorted(({'ad': k, **v} for k, v in hizmet.items()), key=lambda x: -x['adet'])
+
+    # Yoğunluk: gün × saat
+    saatler = list(range(9, 18))
+    isi = [[0] * len(saatler) for _ in range(6)]
+    gun_gelmeme = [[0, 0] for _ in range(7)]  # [gelmedi, sonuçlanan]
+    for r in randevular:
+        if r.durum == 'İptal':
+            continue
+        g_ = r.tarih.weekday()
+        s_ = int(r.saat[:2])
+        if g_ < 6 and s_ in saatler:
+            isi[g_][saatler.index(s_)] += 1
+        if r.durum in ('Tamamlandı', 'Gelmedi'):
+            gun_gelmeme[g_][1] += 1
+            if r.durum == 'Gelmedi':
+                gun_gelmeme[g_][0] += 1
+
+    # Hasta profili (aralıkta randevusu olan hastalar)
+    hastalar = {r.hasta for r in randevular if r.hasta and r.durum != 'İptal'}
+    cinsiyet, yas = {}, {}
+    for h in hastalar:
+        cinsiyet[h.cinsiyet or 'Belirtilmemiş'] = cinsiyet.get(h.cinsiyet or 'Belirtilmemiş', 0) + 1
+        yas[yas_grubu(h)] = yas.get(yas_grubu(h), 0) + 1
+    yas_sira = ['0–17', '18–34', '35–49', '50–64', '65+', 'Bilinmiyor']
+
+    sadik = {}
+    for r in randevular:
+        if r.durum == 'Tamamlandı':
+            sadik[r.hasta_id] = sadik.get(r.hasta_id, 0) + 1
+    sadik_liste = [{'hasta_id': hid, 'ad_soyad': db.session.get(Hasta, hid).ad_soyad, 'ziyaret': n}
+                   for hid, n in sorted(sadik.items(), key=lambda x: -x[1])[:5]]
+
+    # Stok tüketimi
+    tuketim = {}
+    for h in StokHareketi.query.filter(StokHareketi.tarih >= bas_dt, StokHareketi.tarih <= bit_dt,
+                                       StokHareketi.tur.in_(['otomatik', 'cikis'])).all():
+        if h.malzeme:
+            k = h.malzeme.ad
+            t_ = tuketim.setdefault(k, {'miktar': 0, 'birim': h.malzeme.birim, 'deger': 0})
+            t_['miktar'] += -h.miktar
+            t_['deger'] += -h.miktar * (h.malzeme.birim_fiyat or 0)
+    tuketim_liste = sorted(({'ad': k, **v} for k, v in tuketim.items()), key=lambda x: -x['miktar'])[:6]
+
+    islem_kaydet('goruntuleme', 'rapor', None, f'Raporlar: {etiket}')
+    db.session.commit()
+    return render_template(
+        'raporlar.html', aktif_sayfa='raporlar', aralik=tur, bas=bas, bit=bit, etiket=etiket,
+        ozet={
+            'randevu': len([r for r in randevular if r.durum != 'İptal']), 'tamamlanan': durum_say['Tamamlandı'],
+            'gelmedi': durum_say['Gelmedi'], 'iptal': durum_say['İptal'],
+            'gelmeme_orani': round(durum_say['Gelmedi'] / sonuclanan * 100, 1) if sonuclanan else 0,
+            'yeni_hasta': yeni_hasta, 'muayene': len(muayeneler), 'gelir': oz['net'], 'hizmet': oz['ucret'],
+            'indirim': oz['indirim'], 'ort_ucret': int(oz['ucret'] / durum_say['Tamamlandı']) if durum_say['Tamamlandı'] else 0,
+            'tekil_hasta': len(hastalar), 'yontem': oz['yontem'],
+        },
+        rapor_json={
+            'aylik': aylik_liste, 'tanilar': [{'ad': k, 'adet': v} for k, v in tani_liste], 'hizmetler': hizmet_liste,
+            'isi': isi, 'saatler': [f'{s:02d}' for s in saatler], 'gunler': GUN_KISA[:6],
+            'gun_gelmeme': [{'gun': GUN_KISA[i], 'gelmedi': g_[0], 'toplam': g_[1]} for i, g_ in enumerate(gun_gelmeme[:6])],
+            'cinsiyet': cinsiyet, 'yas': [{'ad': k, 'adet': yas.get(k, 0)} for k in yas_sira if yas.get(k)],
+            'sadik': sadik_liste, 'tuketim': tuketim_liste, 'durumlar': durum_say,
+        },
+    )
+
+
+# ------------------------------------------------------------------
 # İlaç listesi
 # ------------------------------------------------------------------
 @app.route('/api/ilaclar')
@@ -2269,6 +2728,102 @@ def ek_ornek_veri():
                                         tur='yara', siddet=5, notlar='3 cm kesi, pansuman yapıldı.'))
         db.session.commit()
         print('Vücut haritası örnek işaretleri eklendi.')
+
+    if not Malzeme.query.count():
+        kalemler = [
+            # ad, kategori, birim, miktar, kritik, birim fiyat (TL), SKT (gün sonra)
+            ('Enjektör 5 ml', 'Sarf malzemesi', 'adet', 140, 40, 3, None),
+            ('Enjektör 2 ml', 'Sarf malzemesi', 'adet', 18, 30, 2.5, None),
+            ('Alkollü pamuk', 'Sarf malzemesi', 'paket', 22, 10, 1.5, None),
+            ('Nitril eldiven', 'Koruyucu ekipman', 'çift', 160, 50, 2, None),
+            ('Steril gazlı bez', 'Pansuman', 'paket', 34, 15, 4, 420),
+            ('Flaster', 'Pansuman', 'rulo', 6, 5, 18, None),
+            ('Batikon 100 ml', 'Pansuman', 'şişe', 4, 3, 65, 24),
+            ('Vakumlu kan tüpü', 'Laboratuvar', 'adet', 90, 40, 6, 200),
+            ('Kelebek iğne', 'Laboratuvar', 'adet', 0, 20, 5, None),
+            ('EKG elektrodu', 'Sarf malzemesi', 'adet', 220, 60, 1.2, 300),
+            ('Ultrason jeli', 'Sarf malzemesi', 'şişe', 3, 2, 90, None),
+            ('Dil basacağı', 'Sarf malzemesi', 'adet', 260, 50, 0.5, None),
+            ('Diklofenak 75 mg ampul', 'İlaç', 'ampul', 12, 10, 14, 19),
+            ('Tetanoz aşısı', 'Aşı', 'flakon', 5, 3, 210, 75),
+        ]
+        bas = simdi - timedelta(days=40)
+        nesne = {}
+        for ad, kat, birim, miktar, kritik, fiyat, skt in kalemler:
+            m = Malzeme(ad=ad, kategori=kat, birim=birim, miktar=0, kritik=kritik, birim_fiyat=int(fiyat * 100),
+                        son_kullanma=(bugun + timedelta(days=skt)) if skt else None, olusturma=bas)
+            db.session.add(m)
+            db.session.flush()
+            giris = miktar + (kritik if miktar < kritik * 1.2 else 0)
+            m.miktar = giris
+            db.session.add(StokHareketi(malzeme_id=m.id, tur='giris', miktar=giris, onceki=0, sonraki=giris,
+                                        aciklama='Açılış stoku', kullanici_id=did, tarih=bas))
+            if giris != miktar:
+                db.session.add(StokHareketi(malzeme_id=m.id, tur='cikis', miktar=miktar - giris, onceki=giris, sonraki=miktar,
+                                            aciklama='Kullanım', kullanici_id=did, tarih=simdi - timedelta(days=3)))
+                m.miktar = miktar
+            nesne[ad] = m
+        recete = {
+            'Genel Muayene': [('Dil basacağı', 1), ('Nitril eldiven', 1)],
+            'Kontrol Muayenesi': [('Nitril eldiven', 1)],
+            'Kan Tahlili': [('Vakumlu kan tüpü', 2), ('Kelebek iğne', 1), ('Alkollü pamuk', 1), ('Nitril eldiven', 1)],
+            'Enjeksiyon': [('Enjektör 5 ml', 1), ('Alkollü pamuk', 1), ('Nitril eldiven', 1)],
+            'Pansuman': [('Steril gazlı bez', 2), ('Batikon 100 ml', 0.1), ('Flaster', 0.05), ('Nitril eldiven', 1)],
+            'EKG': [('EKG elektrodu', 10), ('Alkollü pamuk', 1)],
+            'Ultrason': [('Ultrason jeli', 0.1), ('Nitril eldiven', 1)],
+        }
+        for islem, liste in recete.items():
+            for ad, mk in liste:
+                db.session.add(IslemMalzemesi(islem_turu=islem, malzeme_id=nesne[ad].id, miktar=mk))
+        db.session.commit()
+        print(f'{len(kalemler)} stok kalemi ve hizmet-malzeme eşlemeleri eklendi.')
+
+    # Raporlar dolu görünsün: yalnızca demo veritabanında (demo hekim hesabı varsa) 6 aylık geçmiş üret
+    if Doktor.query.filter_by(email='doktor@klinik.local').first() and ayar('demo_gecmis') != '1':
+        import random
+        rnd = random.Random(42)
+        hastalar = Hasta.query.all()
+        tarifeler = tarife_sozlugu()
+        tanilar = ['Üst solunum yolu enfeksiyonu', 'Esansiyel hipertansiyon', 'Tip 2 diabetes mellitus', 'Migren',
+                   'Akut gastrit', 'Bel ağrısı', 'Demir eksikliği anemisi', 'Hipotiroidi', 'Alerjik rinit', 'İdrar yolu enfeksiyonu']
+        hizmetler = ['Genel Muayene'] * 5 + ['Kontrol Muayenesi'] * 4 + ['Kan Tahlili'] * 2 + ['Enjeksiyon', 'Pansuman', 'EKG', 'Ultrason', 'Konsültasyon']
+        eklenen = 0
+        for gun_geri in range(185, 2, -1):
+            d = bugun - timedelta(days=gun_geri)
+            if d.weekday() == 6:
+                continue
+            for _ in range(rnd.choice([1, 2, 2, 3, 3, 4] if d.weekday() < 5 else [0, 1, 1])):
+                saat = rnd.choice(SAAT_DILIMLERI[:6] * 2 + SAAT_DILIMLERI)
+                if Randevu.query.filter_by(tarih=d, saat=saat).first():
+                    continue
+                h = rnd.choice(hastalar)
+                islem = rnd.choice(hizmetler)
+                durum = rnd.choices(['Tamamlandı', 'Gelmedi', 'İptal'], [82, 9, 9])[0]
+                r = Randevu(hasta_id=h.id, tarih=d, saat=saat, islem_turu=islem, durum=durum, doktor_id=did,
+                            olusturma_tarihi=datetime.combine(d, time(8)) - timedelta(days=3))
+                db.session.add(r)
+                db.session.flush()
+                eklenen += 1
+                if durum != 'Tamamlandı':
+                    continue
+                an = datetime.combine(d, datetime.strptime(saat, '%H:%M').time()) + timedelta(minutes=30)
+                if islem in ('Genel Muayene', 'Kontrol Muayenesi', 'Konsültasyon'):
+                    db.session.add(Muayene(hasta_id=h.id, randevu_id=r.id, doktor_id=did, tarih=an, tani=rnd.choice(tanilar),
+                                           bulgular='Rutin değerlendirme.'))
+                ucret = tarifeler.get(islem, 0)
+                if ucret:
+                    db.session.add(KasaHareketi(tur='ucret', tutar=ucret, hasta_id=h.id, randevu_id=r.id, kullanici_id=did, tarih=an,
+                                                aciklama=f'{islem} · {kisa_tarih(d)} {saat}'))
+                    if rnd.random() < 0.93:
+                        db.session.add(KasaHareketi(tur='tahsilat', tutar=ucret, hasta_id=h.id, kullanici_id=did,
+                                                    yontem=rnd.choices(YONTEMLER, [3, 6, 1])[0],
+                                                    tarih=an + timedelta(minutes=3), aciklama='Ödeme'))
+                for e in IslemMalzemesi.query.filter_by(islem_turu=islem).all():
+                    db.session.add(StokHareketi(malzeme_id=e.malzeme_id, tur='otomatik', miktar=-e.miktar, onceki=0, sonraki=0,
+                                                aciklama=f'{islem} · {h.ad_soyad}', kullanici_id=did, randevu_id=r.id, tarih=an))
+        ayar_yaz('demo_gecmis', '1')
+        db.session.commit()
+        print(f'Raporlar için {eklenen} geçmiş randevu (6 ay) eklendi.')
 
 
 if __name__ == '__main__':

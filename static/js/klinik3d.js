@@ -666,8 +666,159 @@
     });
   }
 
+  // ---------- Sahne 8: Stok — cam raflarda şişeler ve kutular ----------
+  function stokSahnesi(alan, canvas) {
+    var o = hazirla(canvas, '#0A1424', '#0B1730'), scene = o.scene;
+    var camera = new T.PerspectiveCamera(35, 1, 0.1, 100);
+    camera.position.set(0, 0.6, 15);
+    parilti(scene, 'rgba(56,189,248,1)', 4.6, 0.6, -5, 14, 0.4);
+    parilti(scene, 'rgba(45,212,191,1)', 7.5, -2.6, -4, 10, 0.35);
+    parilti(scene, 'rgba(251,113,133,1)', 2.5, 3.2, -7, 7, 0.2);
+
+    var grup = new T.Group(); grup.position.set(4.4, 0, 0); grup.rotation.y = -0.35; scene.add(grup);
+    var rafCam = new T.MeshPhysicalMaterial({ color: '#E0F2FE', roughness: 0.05, transmission: 1, thickness: 0.3, ior: 1.45,
+      iridescence: 0.6, iridescenceIOR: 1.3, clearcoat: 1, envMapIntensity: 1.6, transparent: true, opacity: 0.9 });
+    var kenar = new T.MeshBasicMaterial({ color: '#7DD3FC', transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false });
+    var sise = camMalzeme('#F0F9FF', '#0EA5E9');
+    var kapakMat = new T.MeshPhysicalMaterial({ color: '#F8FAFC', roughness: 0.3, metalness: 0.2, clearcoat: 1 });
+    var RENKLER = ['#5EEAD4', '#A78BFA', '#38BDF8', '#FBBF24', '#F472B6'];
+    var sivilar = [];
+    [-1.55, 0, 1.55].forEach(function (y, rafNo) {
+      var raf = new T.Mesh(new T.BoxGeometry(4.6, 0.08, 1.3), rafCam);
+      raf.position.set(0, y - 0.62, 0); grup.add(raf);
+      var cizgi = new T.Mesh(new T.BoxGeometry(4.6, 0.012, 0.012), kenar);
+      cizgi.position.set(0, y - 0.58, 0.65); grup.add(cizgi);
+      for (var i = 0; i < 5; i++) {
+        var x = -1.8 + i * 0.9;
+        var kutuMu = (i + rafNo) % 3 === 2;
+        var kritik = rafNo === 1 && i === 3;
+        var renk = kritik ? '#FB7185' : RENKLER[(i + rafNo * 2) % RENKLER.length];
+        var tut = new T.Group(); tut.position.set(x, y - 0.58, (i % 2) * 0.2 - 0.1); grup.add(tut);
+        if (kutuMu) {
+          var kutu = new T.Mesh(new T.BoxGeometry(0.62, 0.7, 0.5), camMalzeme('#FFFFFF', renk));
+          kutu.position.y = 0.35; tut.add(kutu);
+          var etiket = new T.Mesh(new T.PlaneGeometry(0.42, 0.18), new T.MeshBasicMaterial({ color: renk, transparent: true, opacity: 0.85 }));
+          etiket.position.set(0, 0.38, 0.252); tut.add(etiket);
+        } else {
+          var h = 0.95;
+          var govde = new T.Mesh(new T.CylinderGeometry(0.24, 0.24, h, 40, 1, true), sise);
+          govde.position.y = h / 2; tut.add(govde);
+          var taban = new T.Mesh(new T.CircleGeometry(0.24, 40), sise); taban.rotation.x = -Math.PI / 2; taban.position.y = 0.005; tut.add(taban);
+          var boyun = new T.Mesh(new T.CylinderGeometry(0.11, 0.2, 0.16, 32), sise); boyun.position.y = h + 0.08; tut.add(boyun);
+          var kapak = new T.Mesh(new T.CylinderGeometry(0.125, 0.125, 0.12, 32), kapakMat); kapak.position.y = h + 0.22; tut.add(kapak);
+          var seviye = kritik ? 0.12 : 0.35 + ((i * 37 + rafNo * 19) % 50) / 100;
+          var sivi = new T.Mesh(new T.CylinderGeometry(0.205, 0.205, 1, 40), new T.MeshPhysicalMaterial({
+            color: renk, emissive: renk, emissiveIntensity: 0.35, roughness: 0.2, transmission: 0.4, transparent: true, opacity: 0.85 }));
+          sivi.userData = { seviye: seviye, h: h - 0.06, faz: i + rafNo * 2, kritik: kritik };
+          sivi.scale.y = seviye * (h - 0.06); sivi.position.y = 0.03 + sivi.scale.y / 2;
+          tut.add(sivi); sivilar.push(sivi);
+          if (kritik) {
+            var uyari = new T.Sprite(new T.SpriteMaterial({ map: isikDokusu('rgba(251,113,133,1)'), transparent: true, opacity: 0.8, blending: T.AdditiveBlending, depthWrite: false }));
+            uyari.scale.set(1.3, 1.3, 1); uyari.position.y = 0.5; tut.add(uyari);
+            sivi.userData.uyari = uyari;
+          }
+        }
+      }
+    });
+    // Yüzen kapsüller
+    var kapsuller = [];
+    for (var k = 0; k < 7; k++) {
+      var c = new T.Mesh(new T.CapsuleGeometry(0.12, 0.3, 10, 20), camMalzeme('#FFFFFF', RENKLER[k % RENKLER.length]));
+      c.position.set((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4.5, 1 + Math.random() * 1.6);
+      c.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+      c.userData = { hiz: 0.3 + Math.random() * 0.5, faz: Math.random() * 6 };
+      grup.add(c); kapsuller.push(c);
+    }
+    var parca = parcaciklar(scene, 'rgba(186,230,253,1)', 280, [24, 12, 14]);
+
+    calistir(alan, canvas, o.renderer, scene, camera, new T.Vector3(2.4, 0, 0), function (dt, z, an, asp) {
+      grup.position.x = asp < 1.2 ? 1.4 : 4.4;
+      sivilar.forEach(function (s) {
+        var hedef = s.userData.kritik ? 0.08 + 0.05 * Math.sin(z * 1.5) : s.userData.seviye + 0.05 * Math.sin(z * 0.6 + s.userData.faz);
+        s.scale.y = Math.max(0.02, hedef * s.userData.h);
+        s.position.y = 0.03 + s.scale.y / 2;
+        if (s.userData.uyari) s.userData.uyari.material.opacity = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(z * 4));
+      });
+      kapsuller.forEach(function (c) {
+        c.rotation.x += dt * c.userData.hiz; c.rotation.z += dt * c.userData.hiz * 0.6;
+        c.position.y += Math.sin(z * 0.8 + c.userData.faz) * 0.003;
+      });
+      grup.rotation.y = -0.35 + an.x * 0.25 + Math.sin(z * 0.2) * 0.08;
+      grup.rotation.x = an.y * 0.1;
+      parca.rotation.y = z * 0.02;
+    });
+  }
+
+  // ---------- Sahne 9: Raporlar — büyüyen cam çubuk grafik ve veri halkası ----------
+  function raporlarSahnesi(alan, canvas) {
+    var o = hazirla(canvas, '#0E0A26', '#120C30'), scene = o.scene;
+    var camera = new T.PerspectiveCamera(35, 1, 0.1, 100);
+    camera.position.set(0, 2.2, 15);
+    camera.lookAt(0, 0, 0);
+    parilti(scene, 'rgba(167,139,250,1)', 4.6, 0.6, -5, 15, 0.45);
+    parilti(scene, 'rgba(45,212,191,1)', 7.2, -2.4, -4, 10, 0.35);
+    parilti(scene, 'rgba(251,191,36,1)', 2.4, 3.2, -7, 7, 0.22);
+
+    var grup = new T.Group(); grup.position.set(4.3, -0.8, 0); grup.rotation.set(0.12, -0.55, 0); scene.add(grup);
+    var zemin = new T.Mesh(new T.BoxGeometry(5.2, 0.06, 3.4), new T.MeshPhysicalMaterial({ color: '#EDE9FE', roughness: 0.05,
+      transmission: 1, thickness: 0.3, iridescence: 0.8, iridescenceIOR: 1.3, clearcoat: 1, envMapIntensity: 1.5 }));
+    zemin.position.y = -0.03; grup.add(zemin);
+    var izgara = new T.GridHelper(5, 10, 0x8B5CF6, 0x8B5CF6);
+    izgara.material.transparent = true; izgara.material.opacity = 0.25; izgara.position.y = 0.005; izgara.scale.z = 0.66; grup.add(izgara);
+    var RENK = ['#A78BFA', '#5EEAD4', '#38BDF8', '#F472B6'];
+    var cubuklar = [];
+    for (var sira = 0; sira < 3; sira++) {
+      for (var i = 0; i < 8; i++) {
+        var c = new T.Mesh(new T.BoxGeometry(0.42, 1, 0.42), camMalzeme('#FFFFFF', RENK[sira % RENK.length]));
+        c.position.set(-2.1 + i * 0.6, 0, -0.9 + sira * 0.9);
+        c.userData = { taban: 0.5 + Math.abs(Math.sin(i * 0.9 + sira * 1.7)) * 1.6 + i * 0.12, faz: i * 0.5 + sira };
+        grup.add(c); cubuklar.push(c);
+      }
+    }
+    // Yükselen trend çizgisi
+    var noktalar = [];
+    for (var j = 0; j < 8; j++) noktalar.push(new T.Vector3(-2.1 + j * 0.6, 1.4 + j * 0.28 + Math.sin(j * 1.3) * 0.25, 1.5));
+    var egri = new T.CatmullRomCurve3(noktalar);
+    var tup = new T.Mesh(new T.TubeGeometry(egri, 120, 0.035, 12, false), new T.MeshBasicMaterial({ color: '#FDE68A', toneMapped: false }));
+    grup.add(tup);
+    var isikNokta = new T.Sprite(new T.SpriteMaterial({ map: isikDokusu('rgba(253,230,138,1)'), transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
+    isikNokta.scale.set(0.7, 0.7, 1); grup.add(isikNokta);
+    noktalar.forEach(function (n) {
+      var b = new T.Mesh(new T.SphereGeometry(0.07, 16, 12), new T.MeshBasicMaterial({ color: '#FEF3C7', toneMapped: false }));
+      b.position.copy(n); grup.add(b);
+    });
+    // Yüzen veri halkası (pasta dilimleri)
+    var halka = new T.Group(); halka.position.set(-1.9, 3.1, 0.6); grup.add(halka);
+    var aci = 0;
+    [0.38, 0.27, 0.2, 0.15].forEach(function (oran, n) {
+      var dilim = new T.Mesh(new T.TorusGeometry(0.62, 0.17, 20, 64, Math.PI * 2 * oran - 0.08), camMalzeme('#FFFFFF', RENK[n]));
+      dilim.rotation.z = aci; aci += Math.PI * 2 * oran;
+      halka.add(dilim);
+    });
+    var parca = parcaciklar(scene, 'rgba(196,181,253,1)', 300, [24, 12, 14]);
+    var buyume = 0;
+
+    calistir(alan, canvas, o.renderer, scene, camera, new T.Vector3(2.4, 0.2, 0), function (dt, z, an, asp) {
+      grup.position.x = asp < 1.2 ? 1.3 : 4.3;
+      buyume = Math.min(1, buyume + dt * 0.6);
+      var e = 1 - Math.pow(1 - buyume, 3);
+      cubuklar.forEach(function (c) {
+        var h = Math.max(0.05, (c.userData.taban + Math.sin(z * 0.7 + c.userData.faz) * 0.18) * e);
+        c.scale.y = h; c.position.y = h / 2;
+      });
+      var t = (z * 0.12) % 1;
+      isikNokta.position.copy(egri.getPointAt(t));
+      halka.rotation.y = z * 0.4;
+      halka.rotation.x = 0.4 + Math.sin(z * 0.5) * 0.15;
+      grup.rotation.y = -0.55 + an.x * 0.22 + Math.sin(z * 0.15) * 0.06;
+      grup.rotation.x = 0.12 + an.y * 0.08;
+      parca.rotation.y = z * 0.02;
+    });
+  }
+
   var SAHNELER = { panel: panelSahnesi, hastalar: hastalarSahnesi, profil: profilSahnesi, randevular: randevularSahnesi,
-                   guvenlik: guvenlikSahnesi, kasa: kasaSahnesi, online: onlineSahnesi };
+                   guvenlik: guvenlikSahnesi, kasa: kasaSahnesi, online: onlineSahnesi,
+                   stok: stokSahnesi, raporlar: raporlarSahnesi };
 
   // Diğer modüllerin (ör. 3D vücut haritası) ortak malzeme ve ortamı kullanabilmesi için
   window.Klinik3D = { hazirla: hazirla, camMalzeme: camMalzeme, isikDokusu: isikDokusu, parilti: parilti, parcaciklar: parcaciklar, azHareket: azHareket };

@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% set doktor = kullanici and kullanici.doktor_mu %}
+
+{% block baslik %}Stok{% endblock %}
+{% block sahne_adi %}stok{% endblock %}
+{% block sahne_yukseklik %}h-[500px] md:h-[460px]{% endblock %}
+{% block sahne_zemin %}radial-gradient(800px 500px at 70% 45%, #12345A, #0A0F1E 70%){% endblock %}
+{% block govde_zemin %}radial-gradient(900px 500px at 60% 480px, rgba(56,189,248,0.10), transparent 70%), #06080F{% endblock %}
+
+{% block ust_aksiyonlar %}
+<button type="button" data-malzeme-yeni class="flex items-center gap-1.5 h-10 px-4 rounded-xl text-[13px] font-bold text-[#082F49] bg-sky-200 hover:bg-sky-100 transition-colors">+ Yeni malzeme</button>
+{% endblock %}
+
+{% block sahne_icerik %}
+<div class="absolute left-5 right-5 bottom-6 sm:left-11 sm:bottom-10 max-w-[640px] flex flex-col gap-4">
+    <span class="giris cam-acik inline-flex self-start items-center gap-2 h-[30px] px-3 rounded-full text-xs font-semibold" style="animation-delay: .1s">
+        <span class="nabiz w-2 h-2 rounded-full {{ 'bg-rose-400' if ozet.kritik or ozet.tukenen else 'bg-sky-300' }}"></span>{{ ozet.toplam }} kalem{% if ozet.deger %} · stok değeri {{ ozet.deger | tl }}{% endif %}
+    </span>
+    <h1 class="giris font-sora text-5xl sm:text-[64px] font-medium leading-none tracking-[-0.035em] text-white" style="animation-delay: .2s">Stok</h1>
+    <p class="giris text-base sm:text-[17px] text-sky-50/90" style="animation-delay: .3s">
+        {% if ozet.kritik or ozet.tukenen %}<span class="text-rose-200 font-semibold">{{ ozet.kritik + ozet.tukenen }} malzeme</span> kritik seviyede{% else %}Tüm malzemeler yeterli seviyede{% endif %}{% if ozet.skt %} · <span class="text-amber-200">{{ ozet.skt }} malzemenin son kullanma tarihi yaklaşıyor</span>{% endif %}.
+        Tamamlanan hizmetlerin malzemeleri stoktan otomatik düşülür.
+    </p>
+    <div class="giris flex flex-wrap gap-2.5" style="animation-delay: .4s">
+        <button type="button" data-malzeme-yeni class="flex items-center gap-2 h-11 px-5 rounded-xl text-sm font-bold text-[#082F49] transition-transform hover:-translate-y-0.5" style="background: linear-gradient(180deg, #E0F2FE, #7DD3FC); box-shadow: 0 14px 30px -14px rgba(56,189,248,0.9)">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Yeni malzeme</button>
+        <button type="button" data-sekme-git="uyari" class="cam-acik flex items-center gap-2 h-11 px-4 rounded-xl text-sm font-semibold text-white hover:bg-white/20 transition-colors">Uyarıları göster</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block icerik %}
+<section aria-label="Stok özeti" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="giris kart cam p-[22px] rounded-3xl flex flex-col gap-1.5" style="animation-delay: .05s">
+        <span class="text-[13px] font-medium text-sky-200">Toplam kalem</span>
+        <span class="font-sora text-[40px] font-medium leading-none tracking-[-0.03em] text-white tabular-nums">{{ ozet.toplam }}</span>
+        <span class="text-xs text-white/60">{{ ozet.deger | tl }} stok değeri</span>
+    </div>
+    <button type="button" data-sekme-git="uyari" class="giris kart cam p-[22px] rounded-3xl flex flex-col gap-1.5 text-left" style="animation-delay: .1s">
+        <span class="text-[13px] font-medium text-rose-200">Kritik / tükenen</span>
+        <span class="font-sora text-[40px] font-medium leading-none tracking-[-0.03em] tabular-nums {{ 'text-rose-200' if ozet.kritik or ozet.tukenen else 'text-white' }}">{{ ozet.kritik + ozet.tukenen }}</span>
+        <span class="text-xs text-white/60">{{ ozet.tukenen }} tükendi · {{ ozet.kritik }} azaldı →</span>
+    </button>
+    <button type="button" data-sekme-git="uyari" class="giris kart cam p-[22px] rounded-3xl flex flex-col gap-1.5 text-left" style="animation-delay: .15s">
+        <span class="text-[13px] font-medium text-amber-200">Son kullanma ≤ 30 gün</span>
+        <span class="font-sora text-[40px] font-medium leading-none tracking-[-0.03em] tabular-nums {{ 'text-amber-200' if ozet.skt else 'text-white' }}">{{ ozet.skt }}</span>
+        <span class="text-xs text-white/60">tarihi geçen veya yaklaşan →</span>
+    </button>
+    <div class="giris kart cam p-[22px] rounded-3xl flex flex-col gap-1.5" style="animation-delay: .2s">
+        <span class="text-[13px] font-medium text-sky-200">Bu ay tüketim</span>
+        <span class="font-sora text-[40px] font-medium leading-none tracking-[-0.03em] text-white tabular-nums">{{ ozet.ay_tuketim_deger | tl }}</span>
+        <span class="text-xs text-white/60">{{ ozet.ay_tuketim_adet }} çıkış hareketi</span>
+    </div>
+</section>
+
+<section class="giris cam rounded-[28px] overflow-hidden" style="animation-delay: .25s">
+    <div role="tablist" aria-label="Stok bölümleri" class="flex flex-wrap items-center gap-1 p-2 border-b border-white/10 bg-black/10">
+        {% for anahtar, etiket in [('malzeme', 'Malzemeler'), ('hareket', 'Hareketler'), ('esleme', 'Hizmet malzemeleri')] %}
+        <button type="button" role="tab" id="sekme-{{ anahtar }}" aria-controls="panel-{{ anahtar }}" data-sekme="{{ anahtar }}" class="sekme h-11 px-5 rounded-2xl text-sm font-semibold transition-colors">{{ etiket }}</button>
+        {% endfor %}
+    </div>
+
+    <!-- Malzemeler -->
+    <div id="panel-malzeme" role="tabpanel" aria-labelledby="sekme-malzeme" class="p-5 sm:p-6 flex flex-col gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+            <label class="relative flex-1 min-w-[220px] max-w-sm">
+                <span class="sr-only">Malzeme ara</span>
+                <input id="malzemeAra" type="search" class="alan !h-11" placeholder="Malzeme ara…">
+            </label>
+            <div id="kategoriFiltre" role="group" aria-label="Kategori" class="flex flex-wrap gap-1.5"></div>
+            <label class="ml-auto flex items-center gap-2 text-[13px] font-medium text-white/85 cursor-pointer">
+                <input id="yalnizUyari" type="checkbox" class="w-4 h-4 accent-rose-400">Yalnız uyarılar</label>
+        </div>
+        <div id="malzemeListe" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3"></div>
+    </div>
+
+    <!-- Hareketler -->
+    <div id="panel-hareket" role="tabpanel" aria-labelledby="sekme-hareket" class="hidden p-5 sm:p-6 flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div id="hareketFiltre" role="group" aria-label="Hareket türü" class="flex flex-wrap gap-1.5">
+                {% for k, e in [('hepsi', 'Tümü'), ('giris', 'Giriş'), ('cikis', 'Çıkış'), ('otomatik', 'Hizmette kullanıldı'), ('sayim', 'Sayım')] %}
+                <button type="button" data-hfiltre="{{ k }}" class="hfiltre h-9 px-3 rounded-full text-xs font-semibold border transition-all">{{ e }}</button>
+                {% endfor %}
+            </div>
+            <label class="relative w-full sm:w-64"><span class="sr-only">Malzemeye göre ara</span>
+                <input id="hareketAra" type="search" class="alan !h-10 !text-[13px]" placeholder="Malzeme veya hasta ara…"></label>
+        </div>
+        <div id="hareketListe" class="flex flex-col gap-1.5"></div>
+    </div>
+
+    <!-- Hizmet malzemeleri -->
+    <div id="panel-esleme" role="tabpanel" aria-labelledby="sekme-esleme" class="hidden p-5 sm:p-6 flex-col gap-4">
+        <div>
+            <h2 class="font-sora text-xl font-medium text-white">Hizmet başına kullanılan malzemeler</h2>
+            <p class="mt-0.5 text-[13px] text-white/60">Bir randevu <strong class="text-white">Tamamlandı</strong> yapıldığında ya da muayenesi girildiğinde bu malzemeler stoktan otomatik düşülür. Ondalıklı miktar girebilirsiniz (ör. 100 ml şişenin 0,1'i).</p>
+        </div>
+        <div id="eslemeListe" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3"></div>
+    </div>
+</section>
+
+<!-- Malzeme ekle / düzenle -->
+<div id="malzemeModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="malzemeForm" class="modal-ic cam-parlak w-full max-w-xl rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(8,22,40,0.95)" role="dialog" aria-modal="true" aria-labelledby="malzemeBaslik" novalidate>
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 id="malzemeBaslik" class="font-sora text-2xl font-medium text-white">Yeni malzeme</h2>
+                <p class="mt-1 text-sm text-sky-50/75">Kritik seviyenin altına inince menüde ve bu sayfada uyarı görünür.</p>
+            </div>
+            <button type="button" data-modal-kapat="malzemeModal" aria-label="Kapat" class="shrink-0 w-11 h-11 rounded-xl bg-white/5 border border-white/10 text-sky-50 flex items-center justify-center hover:bg-white/10">
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Malzeme adı *
+            <input id="mz_ad" type="text" maxlength="100" class="alan" placeholder="Ör. Enjektör 5 ml" required></label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Kategori
+                <input id="mz_kategori" list="kategoriListe" maxlength="40" class="alan" placeholder="Sarf malzemesi">
+                <datalist id="kategoriListe">{% for k in kategoriler %}<option value="{{ k }}">{% endfor %}</datalist></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Birim
+                <select id="mz_birim" class="alan">{% for b in birimler %}<option value="{{ b }}">{{ b }}</option>{% endfor %}</select></label>
+            <label id="mz_miktar_kutu" class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Başlangıç miktarı
+                <input id="mz_miktar" type="number" min="0" step="any" class="alan" placeholder="0"></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Kritik seviye
+                <input id="mz_kritik" type="number" min="0" step="any" class="alan" placeholder="Ör. 20"></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Son kullanma tarihi
+                <input id="mz_skt" type="date" class="alan"></label>
+            <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Birim fiyat (₺)
+                <input id="mz_fiyat" type="text" inputmode="decimal" class="alan" placeholder="İsteğe bağlı"></label>
+        </div>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Not
+            <input id="mz_not" type="text" maxlength="300" class="alan" placeholder="Ör. Tedarikçi, raf yeri"></label>
+        <div class="flex flex-wrap justify-between gap-3 pt-1">
+            <button type="button" id="mz_sil" class="hidden h-12 px-5 rounded-2xl text-sm font-semibold text-rose-200 border border-rose-300/35 hover:bg-rose-500/15">Kaldır</button>
+            <div class="flex gap-3 ml-auto">
+                <button type="button" data-modal-kapat="malzemeModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Vazgeç</button>
+                <button type="submit" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#082F49] bg-sky-200 hover:bg-sky-100 disabled:opacity-60">Kaydet</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Stok hareketi -->
+<div id="hareketModal" class="modal kapali fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 sm:p-10" style="background: rgba(3,2,14,0.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px)" aria-hidden="true">
+    <form id="hareketForm" class="modal-ic cam-parlak w-full max-w-md rounded-[28px] p-6 sm:p-7 flex flex-col gap-4" style="background: rgba(8,22,40,0.95)" role="dialog" aria-modal="true" aria-labelledby="hrBaslik" novalidate>
+        <div>
+            <div id="hrMalzeme" class="text-[12px] font-semibold text-sky-300"></div>
+            <h2 id="hrBaslik" class="mt-0.5 font-sora text-2xl font-medium text-white">Stok hareketi</h2>
+            <p id="hrMevcut" class="mt-1 text-sm text-sky-50/75"></p>
+        </div>
+        <div role="tablist" aria-label="Hareket türü" class="grid grid-cols-3 gap-1 p-1 rounded-[16px] bg-white/5 border border-white/10">
+            {% for k, e in [('giris', '+ Giriş'), ('cikis', '− Çıkış'), ('sayim', 'Sayım')] %}
+            <button type="button" role="tab" data-hr-tur="{{ k }}" class="hr-tur h-10 rounded-[12px] text-[13px] font-semibold">{{ e }}</button>
+            {% endfor %}
+        </div>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100"><span id="hrMiktarEtiket">Miktar</span>
+            <div class="relative">
+                <input id="hr_miktar" type="number" min="0" step="any" class="alan !h-16 font-sora !text-3xl tabular-nums !pr-20">
+                <span id="hrBirim" class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-sky-200"></span>
+            </div></label>
+        <div id="hrHizli" class="flex flex-wrap gap-1.5"></div>
+        <label id="hrSktKutu" class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Yeni partinin son kullanma tarihi
+            <input id="hr_skt" type="date" class="alan"></label>
+        <label class="flex flex-col gap-1.5 text-[13px] font-medium text-sky-100">Açıklama
+            <input id="hr_aciklama" type="text" maxlength="200" class="alan" placeholder="Ör. Tedarikçi faturası 2026/118"></label>
+        <div id="hrSonuc" class="text-[13px] text-sky-50/80"></div>
+        <div class="flex justify-end gap-3">
+            <button type="button" data-modal-kapat="hareketModal" class="h-12 px-6 rounded-2xl text-sm font-semibold text-white bg-white/5 border border-white/15 hover:bg-white/10">Vazgeç</button>
+            <button type="submit" class="h-12 px-7 rounded-2xl text-sm font-bold text-[#082F49] bg-sky-200 hover:bg-sky-100 disabled:opacity-60">Kaydet</button>
+        </div>
+    </form>
+</div>
+
+<script id="stokVeri" type="application/json">{{ {
+    'malzemeler': malzemeler_json, 'hareketler': hareketler_json, 'eslemeler': eslemeler_json,
+    'islemler': islem_turleri, 'doktor': true if doktor else false
+} | tojson }}</script>
+{% endblock %}
+
+{% block scriptler %}
+<script src="{{ url_for('static', filename='js/stok.js') }}"></script>
+{% endblock %}

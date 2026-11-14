@@ -123,6 +123,39 @@ Bunun yanında güzel görünen ama işe yaramayan bir demo değil — **alerji 
 </details>
 
 <details open>
+<summary><b>🔔 Hatırlatma ve “gelmedi” takibi</b></summary>
+
+- Yarının (ya da seçilen günün) randevuları tek listede; her satırda **tek tıkla WhatsApp** hatırlatma, “Hatırlatıldı” işareti ve ilerleme halkası
+- Düzenlenebilir mesaj şablonu (`{ad}`, `{tarih}`, `{saat}`, `{islem}` …) ve canlı önizleme
+- Randevu durumu **Gelmedi**; hastanın kaç kez gelmediği randevu listesinde ve hasta dosyasında görünür
+</details>
+
+<details open>
+<summary><b>📊 Raporlar</b></summary>
+
+- Bu ay / geçen ay / son 3 ay / bu yıl / özel aralık
+- Gelir, tamamlanan randevu, gelmeme oranı, yeni hasta, ortalama ücret özetleri
+- 12 aylık gelir–randevu grafiği, en sık tanılar, hizmet cirosu, **gün × saat yoğunluk ısı haritası**, günlere göre gelmeme, hasta profili, stok tüketimi
+- Tek tuşla **PDF / yazdırma** düzeni (A4 yatay)
+</details>
+
+<details open>
+<summary><b>🎙️ Sesli muayene notu</b></summary>
+
+- Şikâyet, bulgu, tedavi ve not alanlarında mikrofon düğmesi (`Alt+D`) ile **Türkçe dikte**
+- Sesli noktalama komutları: “virgül”, “nokta”, “yeni satır”, “son kelimeyi sil” …
+- Tarayıcının Web Speech API'si ile çalışır (Chrome / Edge)
+</details>
+
+<details open>
+<summary><b>📦 Stok ve malzeme takibi</b></summary>
+
+- Malzeme kartları: miktar, kritik seviye, son kullanma tarihi, birim fiyat; **kritik / tükendi / SKT** uyarıları ve menüde rozet
+- Giriş, çıkış ve sayım hareketleri; tam hareket geçmişi
+- Hizmet–malzeme eşlemesi: randevu **tamamlanınca kullanılan malzemeler stoktan otomatik düşer**
+</details>
+
+<details open>
 <summary><b>🛡️ KVKK ve güvenlik</b></summary>
 
 - **Açık rıza** kaydı, yazdırılabilir aydınlatma metni, rızanın geri çekilmesi, hasta verisinin **makinece okunabilir dışa aktarımı** (KVKK m.11)
@@ -226,18 +259,20 @@ Tarayıcıda **http://127.0.0.1:5000** adresini açın.
 
 ```
 butik-klinik-saas/
-├── app.py                 # Flask uygulaması: sayfalar, REST API, güvenlik, yedekleme, kasa, online randevu
-├── models.py              # SQLAlchemy modelleri (13 tablo)
+├── app.py                 # Flask uygulaması: sayfalar, REST API, güvenlik, yedekleme, kasa, online randevu, stok, raporlar
+├── models.py              # SQLAlchemy modelleri (16 tablo)
 ├── ilaclar.py             # İlaç listesi ve alerji / etkileşim / hastalık kuralları
 ├── requirements.txt
 ├── static/
 │   ├── css/klinik.css     # Cam yüzeyler, animasyonlar
 │   ├── js/
-│   │   ├── klinik3d.js    # 7 sinematik 3D sahne
+│   │   ├── klinik3d.js    # 9 sinematik 3D sahne
 │   │   ├── vucut3d.js     # Anatomik vücut haritası
 │   │   ├── klinik.js      # Ortak: bildirim, modal, ekran kilidi
 │   │   ├── profil.js      # Hasta dosyası: vital grafik, muayene, reçete oluşturucu
 │   │   ├── kasa.js / hesap.js / online_talepler.js
+│   │   ├── stok.js / raporlar.js / hatirlatma.js
+│   │   ├── dikte.js       # Türkçe sesli dikte
 │   └── models/insan.bin   # Sıkıştırılmış 3D insan modeli (MakeHuman, CC0)
 ├── templates/             # Jinja2 sayfaları + yazdırılabilir belgeler (reçete, makbuz, ekstre…)
 └── docs/ekran/            # README ekran görüntüleri
@@ -247,12 +282,13 @@ butik-klinik-saas/
 
 ## 🗺️ Yol haritası
 
-- [ ] Randevu hatırlatmaları ve “gelmedi” takibi
-- [ ] Raporlar paneli (gelir, tanı dağılımı, yoğunluk ısı haritası) + PDF
+- [x] Randevu hatırlatmaları ve “gelmedi” takibi
+- [x] Raporlar paneli (gelir, tanı dağılımı, yoğunluk ısı haritası) + PDF
 - [ ] Tahlil / görüntü dosyası yükleme ve laboratuvar değer grafikleri
 - [ ] `Ctrl+K` komut paleti
 - [ ] Bekleme salonu ekranı
-- [ ] Sesli muayene notu (Web Speech API)
+- [x] Sesli muayene notu (Web Speech API)
+- [x] Stok ve malzeme takibi
 - [ ] Çoklu hekim çalışma takvimi
 - [ ] PWA — telefona uygulama olarak kurulum
 
